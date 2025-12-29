@@ -1,0 +1,419 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String
+  role          UserRole
+  isActive      Boolean  @default(true)
+  emailVerified Boolean  @default(false)
+  lastLogin     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  customerProfile CustomerProfile?
+  assignedSubscriptions Subscription[] @relation("AssignedSalesExecutive")
+  communications CommunicationLog[] @relation("UserCommunications")
+  auditLogs AuditLog[]
+  tasks Task[]
+
+  @@index([email])
+  @@index([role])
+}
+
+enum UserRole {
+  CUSTOMER
+  AGENCY
+  SALES_EXECUTIVE
+  MANAGER
+  FINANCE_ADMIN
+  SUPER_ADMIN
+}
+
+// ============================================
+// CUSTOMER PROFILES
+// ============================================
+
+model CustomerProfile {
+  id                String       @id @default(uuid())
+  userId            String       @unique
+  customerType      CustomerType
+  
+  // Common fields
+  name              String
+  organizationName  String?
+  primaryEmail      String
+  secondaryEmail    String?
+  primaryPhone      String
+  secondaryPhone    String?
+  gstVatTaxId       String?
+  
+  // Address
+  billingAddress    String?
+  shippingAddress   String?
+  country           String?
+  state             String?
+  city              String?
+  pincode           String?
+  
+  // Preferences
+  preferredChannel  String?      // email/phone/whatsapp
+  notes             String?
+  tags              String?      // Comma-separated tags for SQLite compatibility
+  
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  // Relations
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institutionDetails InstitutionDetails?
+  agencyDetails     AgencyDetails?
+  subscriptions     Subscription[]
+  communications    CommunicationLog[]
+
+  @@index([customerType])
+  @@index([primaryEmail])
+}
+
+enum CustomerType {
+  INDIVIDUAL
+  INSTITUTION
+  AGENCY
+}
+
+model InstitutionDetails {
+  id                String   @id @default(uuid())
+  customerProfileId String   @unique
+  
+  category          String   // University/College/Company/Library/Govt
+  department        String?
+  libraryContact    String?
+  ipRange           String?
+  numberOfUsers     Int?
+  numberOfSeats     Int?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  customerProfile   CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade)
+}
+
+model AgencyDetails {
+  id                String   @id @default(uuid())
+  customerProfileId String   @unique
+  
+  companyInfo       String?
+  territory         String?
+  region            String?
+  primaryContact    String?
+  commissionTerms   String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  customerProfile   CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade)
+  subscriptions     Subscription[]
+}
+
+// ============================================
+// JOURNAL CATALOG
+// ============================================
+
+model Journal {
+  id              String   @id @default(uuid())
+  name            String
+  issnPrint       String?
+  issnOnline      String?
+  frequency       String   // monthly/quarterly/annual
+  formatAvailable String?  // Comma-separated formats for SQLite compatibility
+  subjectCategory String?  // Comma-separated categories for SQLite compatibility
+  isActive        Boolean  @default(true)
+  
+  // Pricing
+  basePrice       Float
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  plans           Plan[]
+  subscriptionItems SubscriptionItem[]
+
+  @@index([isActive])
+  @@index([name])
+}
+
+model Plan {
+  id              String   @id @default(uuid())
+  journalId       String
+  
+  planType        String   // Annual/Multi-year/Trial
+  format          String   // Print/Online/Hybrid
+  institutionTier String?  // small/medium/large
+  duration        Int      // in months
+  price           Float
+  
+  // Rules
+  startDateRule   String?  // immediate/calendar-year
+  gracePeriod     Int      @default(30) // days
+  
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  journal         Journal  @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  subscriptionItems SubscriptionItem[]
+
+  @@index([journalId])
+  @@index([isActive])
+}
+
+// ============================================
+// SUBSCRIPTIONS
+// ============================================
+
+model Subscription {
+  id                String             @id @default(uuid())
+  customerProfileId String
+  
+  // Sales channel
+  salesChannel      SalesChannel
+  agencyId          String?
+  salesExecutiveId  String?
+  
+  // Subscription details
+  startDate         DateTime
+  endDate           DateTime
+  autoRenew         Boolean            @default(false)
+  status            SubscriptionStatus @default(PENDING_PAYMENT)
+  
+  // Pricing
+  subtotal          Float
+  discount          Float              @default(0)
+  tax               Float              @default(0)
+  total             Float
+  
+  // Invoice reference
+  invoiceReference  String?
+  
+  // Renewal chain
+  parentSubscriptionId String?
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  // Relations
+  customerProfile   CustomerProfile    @relation(fields: [customerProfileId], references: [id])
+  agency            AgencyDetails?     @relation(fields: [agencyId], references: [id])
+  salesExecutive    User?              @relation("AssignedSalesExecutive", fields: [salesExecutiveId], references: [id])
+  items             SubscriptionItem[]
+  parentSubscription Subscription?     @relation("SubscriptionRenewal", fields: [parentSubscriptionId], references: [id])
+  renewals          Subscription[]     @relation("SubscriptionRenewal")
+  invoices          Invoice[]
+
+  @@index([customerProfileId])
+  @@index([status])
+  @@index([salesChannel])
+  @@index([startDate, endDate])
+}
+
+enum SalesChannel {
+  DIRECT
+  AGENCY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PENDING_PAYMENT
+  EXPIRED
+  CANCELLED
+  SUSPENDED
+}
+
+model SubscriptionItem {
+  id              String   @id @default(uuid())
+  subscriptionId  String
+  journalId       String
+  planId          String
+  
+  quantity        Int      @default(1) // for print copies
+  seats           Int?     // for online
+  price           Float
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  journal         Journal      @relation(fields: [journalId], references: [id])
+  plan            Plan         @relation(fields: [planId], references: [id])
+
+  @@index([subscriptionId])
+}
+
+// ============================================
+// INVOICING & PAYMENTS
+// ============================================
+
+model Invoice {
+  id              String        @id @default(uuid())
+  subscriptionId  String
+  invoiceNumber   String        @unique
+  
+  amount          Float
+  tax             Float
+  total           Float
+  
+  status          InvoiceStatus @default(UNPAID)
+  dueDate         DateTime
+  paidDate        DateTime?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  subscription    Subscription  @relation(fields: [subscriptionId], references: [id])
+  payments        Payment[]
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([invoiceNumber])
+}
+
+enum InvoiceStatus {
+  PAID
+  UNPAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  invoiceId       String
+  
+  amount          Float
+  paymentMethod   String        // card/bank-transfer/check/other
+  paymentDate     DateTime
+  transactionId   String?
+  notes           String?
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+}
+
+// ============================================
+// COMMUNICATION & TASKS
+// ============================================
+
+model CommunicationLog {
+  id                String   @id @default(uuid())
+  customerProfileId String
+  userId            String?  // Who logged this communication
+  
+  date              DateTime @default(now())
+  channel           String   // Email/Phone/WhatsApp/Meeting/Other
+  subject           String
+  notes             String
+  outcome           String?  // interested/follow-up/renewal-confirmed/complaint
+  
+  nextFollowUpDate  DateTime?
+  attachments       String?  // Comma-separated file paths/URLs for SQLite compatibility
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  customerProfile   CustomerProfile @relation(fields: [customerProfileId], references: [id])
+  user              User?           @relation("UserCommunications", fields: [userId], references: [id])
+
+  @@index([customerProfileId])
+  @@index([date])
+  @@index([nextFollowUpDate])
+}
+
+model Task {
+  id              String     @id @default(uuid())
+  userId          String
+  
+  title           String
+  description     String?
+  dueDate         DateTime
+  priority        Priority   @default(MEDIUM)
+  status          TaskStatus @default(PENDING)
+  
+  // Optional relation to customer/subscription
+  relatedCustomerId String?
+  relatedSubscriptionId String?
+  
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Relations
+  user            User       @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================
+// AUDIT & TRACKING
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  
+  action      String   // create/update/delete
+  entity      String   // customer/subscription/invoice etc
+  entityId    String
+  changes     Json?    // Store the change details
+  ipAddress   String?
+  
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}

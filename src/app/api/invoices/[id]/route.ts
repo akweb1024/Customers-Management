@@ -1,0 +1,61 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { verifyToken } from '@/lib/auth';
+
+export async function GET(
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { id } = await params;
+
+        // 1. Verify Authentication
+        const authHeader = req.headers.get('authorization');
+        const token = authHeader?.split(' ')[1];
+
+        if (!token) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const decoded = verifyToken(token);
+        if (!decoded || !decoded.role) {
+            return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+        }
+
+        // 2. Fetch Invoice
+        const invoice = await prisma.invoice.findUnique({
+            where: { id },
+            include: {
+                subscription: {
+                    include: {
+                        customerProfile: true,
+                        items: {
+                            include: {
+                                journal: true,
+                                plan: true
+                            }
+                        }
+                    }
+                },
+                payments: true
+            }
+        });
+
+        if (!invoice) {
+            return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+        }
+
+        // 3. Authorization Check
+        if (decoded.role === 'CUSTOMER') {
+            if (invoice.subscription.customerProfile.userId !== decoded.id) {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
+        }
+
+        return NextResponse.json(invoice);
+
+    } catch (error: any) {
+        console.error('Invoice Detail API Error:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
+}

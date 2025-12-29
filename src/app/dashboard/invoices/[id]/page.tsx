@@ -1,0 +1,262 @@
+'use client';
+
+import { useState, useEffect, use } from 'react';
+import { useRouter } from 'next/navigation';
+import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import FormattedDate from '@/components/common/FormattedDate';
+
+export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params);
+    const router = useRouter();
+    const [invoice, setInvoice] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [userRole, setUserRole] = useState('CUSTOMER');
+    const [isPaying, setIsPaying] = useState(false);
+
+    useEffect(() => {
+        const userData = localStorage.getItem('user');
+        if (userData) {
+            const user = JSON.parse(userData);
+            setUserRole(user.role);
+        }
+        fetchInvoice();
+    }, [id]);
+
+    const fetchInvoice = async () => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`/api/invoices/${id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setInvoice(data);
+            } else {
+                const err = await res.json();
+                setError(err.error || 'Invoice not found');
+            }
+        } catch (err) {
+            setError('Failed to load invoice');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSimulatePayment = async () => {
+        if (!confirm('Simulate successful payment for this invoice?')) return;
+
+        setIsPaying(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`/api/invoices/${id}/pay`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    amount: invoice.total,
+                    paymentMethod: 'card',
+                    transactionId: `SIM-${Date.now()}`,
+                    notes: 'Simulated payment via dashboard'
+                })
+            });
+
+            if (res.ok) {
+                await fetchInvoice(); // Refresh data
+            } else {
+                const err = await res.json();
+                alert(err.error);
+            }
+        } catch (err) {
+            alert('Payment simulation failed');
+        } finally {
+            setIsPaying(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <DashboardLayout userRole={userRole}>
+                <div className="flex items-center justify-center min-h-[400px]">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                </div>
+            </DashboardLayout>
+        );
+    }
+
+    if (error || !invoice) {
+        return (
+            <DashboardLayout userRole={userRole}>
+                <div className="card-premium p-12 text-center">
+                    <div className="text-danger-500 text-4xl mb-4">⚠️</div>
+                    <h2 className="text-xl font-bold text-secondary-900">{error || 'Invoice not found'}</h2>
+                    <button onClick={() => router.back()} className="btn btn-primary mt-6">Go Back</button>
+                </div>
+            </DashboardLayout>
+        );
+    }
+
+    return (
+        <DashboardLayout userRole={userRole}>
+            <div className="max-w-5xl mx-auto space-y-6 pb-12">
+                {/* Header Actions */}
+                <div className="flex justify-between items-center">
+                    <button onClick={() => router.back()} className="btn btn-secondary flex items-center space-x-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        <span>Back</span>
+                    </button>
+                    <div className="flex space-x-3">
+                        <button className="btn btn-secondary" onClick={() => window.print()}>
+                            Print PDF
+                        </button>
+                        {invoice.status !== 'PAID' && (
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleSimulatePayment}
+                                disabled={isPaying}
+                            >
+                                {isPaying ? 'Processing...' : 'Settle Invoice'}
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Invoice Document */}
+                <div className="card-premium p-0 overflow-hidden shadow-2xl border-0 ring-1 ring-secondary-200">
+                    <div className="p-8 sm:p-12 space-y-12">
+                        {/* Top Branding & Status */}
+                        <div className="flex flex-col sm:flex-row justify-between gap-8">
+                            <div>
+                                <h1 className="text-4xl font-extrabold text-primary-600 tracking-tight">STM JOURNALS</h1>
+                                <p className="text-secondary-500 mt-2 font-medium">Subscription Management Division</p>
+                            </div>
+                            <div className="text-right">
+                                <span className={`inline-block px-4 py-1.5 rounded-full font-bold text-sm mb-4 ${invoice.status === 'PAID' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                    }`}>
+                                    {invoice.status.replace('_', ' ')}
+                                </span>
+                                <div className="space-y-1">
+                                    <p className="text-3xl font-bold text-secondary-900">{invoice.invoiceNumber}</p>
+                                    <p className="text-sm text-secondary-500">Date: <FormattedDate date={invoice.createdAt} /></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Customer & Billing Info */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-8 border-t border-secondary-100">
+                            <div className="space-y-4">
+                                <h3 className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Billed To</h3>
+                                <div>
+                                    <p className="text-lg font-bold text-secondary-900">{invoice.subscription.customerProfile.name}</p>
+                                    <p className="text-secondary-600 font-medium">{invoice.subscription.customerProfile.organizationName || 'Individual'}</p>
+                                    <p className="text-secondary-500 text-sm mt-1">{invoice.subscription.customerProfile.primaryEmail}</p>
+                                    <p className="text-secondary-500 text-sm">{invoice.subscription.customerProfile.billingAddress}</p>
+                                </div>
+                            </div>
+                            <div className="space-y-4 md:text-right">
+                                <h3 className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Payment Details</h3>
+                                <div className="space-y-2">
+                                    <p className="text-sm">
+                                        <span className="text-secondary-500">Due Date:</span>{' '}
+                                        <span className="font-bold text-secondary-900"><FormattedDate date={invoice.dueDate} /></span>
+                                    </p>
+                                    <p className="text-sm">
+                                        <span className="text-secondary-500">Method:</span>{' '}
+                                        <span className="font-bold text-secondary-900">{invoice.payments[0]?.paymentMethod || 'TBD'}</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Line Items */}
+                        <div className="overflow-x-auto pt-8">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="border-b-2 border-secondary-900">
+                                        <th className="py-4 text-sm font-bold text-secondary-900 uppercase">Item Description</th>
+                                        <th className="py-4 text-sm font-bold text-secondary-900 uppercase text-center">Qty</th>
+                                        <th className="py-4 text-sm font-bold text-secondary-900 uppercase text-right">Unit Price</th>
+                                        <th className="py-4 text-sm font-bold text-secondary-900 uppercase text-right">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-secondary-100">
+                                    {invoice.subscription.items.map((item: any) => (
+                                        <tr key={item.id}>
+                                            <td className="py-6">
+                                                <div className="font-bold text-secondary-900">{item.journal.name}</div>
+                                                <div className="text-sm text-secondary-500">{item.plan.planType} - {item.plan.format}</div>
+                                            </td>
+                                            <td className="py-6 text-center font-medium">{item.quantity}</td>
+                                            <td className="py-6 text-right font-medium">${item.price.toLocaleString()}</td>
+                                            <td className="py-6 text-right font-bold text-secondary-900">${(item.price * item.quantity).toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Totals */}
+                        <div className="flex justify-end pt-8">
+                            <div className="w-full sm:w-80 space-y-4">
+                                <div className="flex justify-between text-secondary-600">
+                                    <span>Subtotal</span>
+                                    <span className="font-bold">${invoice.amount.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between text-secondary-600">
+                                    <span>Tax (0%)</span>
+                                    <span className="font-bold">+$0.00</span>
+                                </div>
+                                <div className="flex justify-between items-center pt-4 border-t-2 border-secondary-900">
+                                    <span className="text-xl font-bold text-secondary-900 uppercase">Total Due</span>
+                                    <span className="text-3xl font-extrabold text-primary-600">${invoice.total.toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer Notes */}
+                        <div className="pt-12 border-t border-secondary-100 italic text-sm text-secondary-400">
+                            <p>Thank you for choosing STM Journals. Subscription periods start from the first confirmed payment date.</p>
+                            <p className="mt-1">For billing inquiries, please contact finance@stm.com quoting the invoice number above.</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Payment History (if any) */}
+                {invoice.payments.length > 0 && (
+                    <div className="card-premium">
+                        <h3 className="text-lg font-bold text-secondary-900 mb-4">Payment History</h3>
+                        <div className="space-y-4">
+                            {invoice.payments.map((p: any) => (
+                                <div key={p.id} className="flex justify-between items-center p-4 bg-secondary-50 rounded-xl">
+                                    <div className="flex items-center space-x-4">
+                                        <div className="w-10 h-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-secondary-900">Payment Processed</p>
+                                            <p className="text-xs text-secondary-500">
+                                                <FormattedDate date={p.paymentDate} /> via {p.paymentMethod}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-bold text-green-600">+ ${p.amount.toLocaleString()}</p>
+                                        <p className="text-[10px] text-secondary-400 font-mono italic">{p.transactionId}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </DashboardLayout>
+    );
+}

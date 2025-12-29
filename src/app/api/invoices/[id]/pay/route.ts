@@ -1,0 +1,104 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { verifyToken } from '@/lib/auth';
+
+export async function POST(
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { id } = await params;
+
+        // 1. Verify Authentication
+        const authHeader = req.headers.get('authorization');
+        const token = authHeader?.split(' ')[1];
+
+        if (!token) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const decoded = verifyToken(token);
+        if (!decoded || !decoded.role) {
+            return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+        }
+
+        // 2. Parse Payload
+        const body = await req.json();
+        const { amount, paymentMethod, transactionId, notes } = body;
+
+        // 3. Process Payment in Transaction
+        const result = await prisma.$transaction(async (tx: any) => {
+            // Fetch Invoice and its current payments
+            const invoice = await tx.invoice.findUnique({
+                where: { id },
+                include: {
+                    payments: true,
+                    subscription: true
+                }
+            });
+
+            if (!invoice) throw new Error('Invoice not found');
+            if (invoice.status === 'PAID') throw new Error('Invoice is already paid');
+
+            // Record new payment
+            const payment = await tx.payment.create({
+                data: {
+                    invoiceId: id,
+                    amount,
+                    paymentMethod,
+                    paymentDate: new Date(),
+                    transactionId,
+                    notes
+                }
+            });
+
+            // Calculate new total paid
+            const totalPaid = [...invoice.payments.map((p: any) => p.amount), amount].reduce((a, b) => a + b, 0);
+
+            // Update Invoice Status
+            let newStatus = 'PARTIALLY_PAID';
+            if (totalPaid >= invoice.total) {
+                newStatus = 'PAID';
+            }
+
+            const updatedInvoice = await tx.invoice.update({
+                where: { id },
+                data: {
+                    status: newStatus,
+                    paidDate: newStatus === 'PAID' ? new Date() : null
+                }
+            });
+
+            // Update Subscription Status if fully paid and currently pending
+            if (newStatus === 'PAID' && invoice.subscription.status === 'PENDING_PAYMENT') {
+                await tx.subscription.update({
+                    where: { id: invoice.subscriptionId },
+                    data: { status: 'ACTIVE' }
+                });
+            }
+
+            // Audit Log
+            await tx.auditLog.create({
+                data: {
+                    userId: decoded.id,
+                    action: 'payment_recorded',
+                    entity: 'invoice',
+                    entityId: id,
+                    changes: JSON.stringify({ amount, status: newStatus, transactionId })
+                }
+            });
+
+            return { payment, invoice: updatedInvoice };
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: 'Payment recorded successfully',
+            data: result
+        });
+
+    } catch (error: any) {
+        console.error('Payment API Error:', error);
+        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    }
+}
