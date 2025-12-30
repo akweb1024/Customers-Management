@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function PATCH(
     req: NextRequest,
@@ -8,11 +8,7 @@ export async function PATCH(
 ) {
     try {
         const { id } = await params;
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-        if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
         const body = await req.json();
@@ -53,11 +49,7 @@ export async function DELETE(
 ) {
     try {
         const { id } = await params;
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-        if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
         const existing = await prisma.task.findUnique({

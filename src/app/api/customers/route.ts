@@ -1,24 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 import { CustomerType } from '@/types';
 
 export async function GET(req: NextRequest) {
+    // Fetch customers with filtering and assignment
     try {
         // 1. Verify Authentication
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded || !decoded.role) {
             return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         }
 
-        // Role Check
+        // Role Check and Filtering
         const allowedRoles = ['SUPER_ADMIN', 'MANAGER', 'SALES_EXECUTIVE'];
         if (!allowedRoles.includes(decoded.role)) {
             return NextResponse.json({ error: 'Access denied' }, { status: 403 });
@@ -34,6 +28,13 @@ export async function GET(req: NextRequest) {
         const skip = (page - 1) * limit;
 
         const where: any = {};
+        const userCompanyId = (decoded as any).companyId;
+
+        // Multi-tenancy: Restrict to company if not SUPER_ADMIN
+        if (decoded.role !== 'SUPER_ADMIN' && userCompanyId) {
+            where.companyId = userCompanyId;
+        }
+
         if (search) {
             where.OR = [
                 { name: { contains: search } },
@@ -43,6 +44,11 @@ export async function GET(req: NextRequest) {
         }
         if (type) {
             where.customerType = type;
+        }
+
+        // Executive Restriction: Only see assigned customers
+        if (decoded.role === 'SALES_EXECUTIVE') {
+            where.assignedToUserId = decoded.id;
         }
 
         // 3. Fetch
@@ -59,6 +65,12 @@ export async function GET(req: NextRequest) {
                             role: true,
                             lastLogin: true,
                             isActive: true
+                        }
+                    },
+                    assignedTo: { // Include assigned staff info
+                        select: {
+                            email: true,
+                            // id: true // id is implicitly available
                         }
                     },
                     _count: {
@@ -91,11 +103,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-        if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded || !['SUPER_ADMIN', 'MANAGER', 'SALES_EXECUTIVE'].includes(decoded.role)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
@@ -114,12 +122,17 @@ export async function POST(req: NextRequest) {
             pincode,
             gstVatTaxId,
             tags,
-            institutionDetails
+            institutionDetails,
+            assignedToUserId, // Optional override
+            companyId // Optional override for SUPER_ADMIN
         } = body;
 
         if (!name || !primaryEmail || !customerType) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
+
+        // Determine target company
+        let targetCompanyId = companyId || (decoded as any).companyId;
 
         const result = await prisma.$transaction(async (tx) => {
             // Check if email already exists
@@ -130,30 +143,26 @@ export async function POST(req: NextRequest) {
                 throw new Error('Customer with this email already exists');
             }
 
-            // Create Profile (Note: userId is required in schema, but usually we link to an existing user or create one)
-            // Looking at the schema, userId is NOT optional: user User @relation(...)
-            // Let's check the schema logic for userId in CustomerProfile
-
-            // Wait, I need to check if I need to create a USER first.
-            // If I'm creating a customer from the dashboard, I might need to create a User record.
-
-            // Re-checking schema:
-            // userId String @unique
-            // user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-            // So I MUST have a userId.
-
             const user = await tx.user.create({
                 data: {
                     email: primaryEmail,
                     password: '$2a$10$p/9p.0vY8Z6Z.p/9p.0vY8Z6Z.p/9p.0vY8Z6Z.p/9p.0v', // Mock hashed password "password123"
-                    role: customerType === 'AGENCY' ? 'AGENCY' : 'CUSTOMER'
+                    role: customerType === 'AGENCY' ? 'AGENCY' : 'CUSTOMER',
+                    companyId: targetCompanyId
                 }
             });
+
+            // Determine Assignment
+            let initialAssignedTo = assignedToUserId;
+            if (!initialAssignedTo && decoded.role === 'SALES_EXECUTIVE') {
+                initialAssignedTo = decoded.id; // Auto-assign to self
+            }
 
             const customer = await tx.customerProfile.create({
                 data: {
                     userId: user.id,
+                    assignedToUserId: initialAssignedTo, // Use the determined ID
+                    companyId: targetCompanyId,
                     name,
                     organizationName,
                     customerType,

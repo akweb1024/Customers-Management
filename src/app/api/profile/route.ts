@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
 export async function GET(req: NextRequest) {
     try {
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-        if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
         const user = await prisma.user.findUnique({
             where: { id: decoded.id },
             include: {
-                customerProfile: true
+                customerProfile: true,
+                company: true
             }
         });
 
@@ -31,11 +28,7 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
     try {
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-        if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded) return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
 
         const body = await req.json();

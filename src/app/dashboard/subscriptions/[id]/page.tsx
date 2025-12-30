@@ -132,6 +132,7 @@ export default function SubscriptionDetailsPage() {
 
     const getStatusBadgeClass = (status: string) => {
         switch (status) {
+            case 'REQUESTED': return 'bg-blue-100 text-blue-700';
             case 'ACTIVE': return 'badge-success';
             case 'PENDING_PAYMENT': return 'badge-warning';
             case 'EXPIRED': return 'badge-danger';
@@ -159,6 +160,15 @@ export default function SubscriptionDetailsPage() {
                     </div>
 
                     <div className="flex flex-wrap gap-3">
+                        {userRole !== 'CUSTOMER' && subscription.status === 'REQUESTED' && (
+                            <button
+                                onClick={() => handleStatusChange('PENDING_PAYMENT')}
+                                disabled={actionLoading}
+                                className="btn btn-primary px-4 bg-blue-600 hover:bg-blue-700"
+                            >
+                                Approve Request
+                            </button>
+                        )}
                         {userRole !== 'CUSTOMER' && subscription.status === 'ACTIVE' && (
                             <button
                                 onClick={() => handleStatusChange('CANCELLED')}
@@ -177,13 +187,15 @@ export default function SubscriptionDetailsPage() {
                                 Mark as Active
                             </button>
                         )}
-                        <button
-                            className="btn btn-primary px-6"
-                            onClick={handleRenew}
-                            disabled={actionLoading}
-                        >
-                            {actionLoading ? 'Processing...' : 'Renew Subscription'}
-                        </button>
+                        {subscription.status !== 'REQUESTED' && (
+                            <button
+                                className="btn btn-primary px-6"
+                                onClick={handleRenew}
+                                disabled={actionLoading}
+                            >
+                                {actionLoading ? 'Processing...' : 'Renew Subscription'}
+                            </button>
+                        )}
                     </div>
                 </div>
 

@@ -117,8 +117,8 @@ export default function JournalsPage() {
                                     <div className="flex justify-between items-center">
                                         <div>
                                             <p className="text-xs text-secondary-500">Starting from</p>
-                                            <p className="text-lg font-bold text-primary-600">
-                                                ${Math.min(...journal.plans.map((p: any) => p.price)).toLocaleString()}
+                                            <p className="text-sm font-bold text-primary-600">
+                                                ₹{Math.min(...journal.plans.map((p: any) => p.priceINR || 0)).toLocaleString()} / ${Math.min(...journal.plans.map((p: any) => p.priceUSD || 0)).toLocaleString()}
                                             </p>
                                         </div>
                                         <button
@@ -159,16 +159,16 @@ export default function JournalsPage() {
                                 <div key={plan.id} className="flex items-center justify-between p-6 bg-secondary-50 border border-secondary-200 rounded-2xl hover:border-primary-300 transition-colors">
                                     <div className="flex items-center space-x-4">
                                         <div className="w-12 h-12 rounded-xl bg-white border border-secondary-200 flex items-center justify-center text-2xl">
-                                            {plan.type === 'ONLINE' ? '🌐' : plan.type === 'PRINT' ? '📖' : '💎'}
+                                            {plan.format === 'Online' ? '🌐' : plan.format === 'Print' ? '📖' : '💎'}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-secondary-900 uppercase tracking-wide">{plan.type}</h4>
-                                            <p className="text-xs text-secondary-500">Standard annual license</p>
+                                            <h4 className="font-bold text-secondary-900 uppercase tracking-wide">{plan.format} - {plan.planType}</h4>
+                                            <p className="text-xs text-secondary-500">Duration: {plan.duration} Months</p>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-2xl font-black text-primary-600">${plan.price.toLocaleString()}</p>
-                                        <p className="text-[10px] uppercase font-bold text-secondary-400 tracking-widest">Per Year</p>
+                                        <p className="text-lg font-black text-primary-600">₹{plan.priceINR?.toLocaleString()} / ${plan.priceUSD?.toLocaleString()}</p>
+                                        <p className="text-[10px] uppercase font-bold text-secondary-400 tracking-widest">Per Term</p>
                                     </div>
                                 </div>
                             ))}

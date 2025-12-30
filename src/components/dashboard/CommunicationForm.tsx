@@ -1,0 +1,170 @@
+import { useState } from 'react';
+
+interface CommunicationFormProps {
+    customerId: string;
+    previousFollowUpId?: string | null;
+    onSuccess?: () => void;
+}
+
+export default function CommunicationForm({ customerId, previousFollowUpId, onSuccess }: CommunicationFormProps) {
+    const [type, setType] = useState('COMMENT');
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        setLoading(true);
+
+        const form = e.target as HTMLFormElement;
+        const formData = new FormData(form);
+        const payload: any = {
+            customerProfileId: customerId,
+            previousFollowUpId,
+            type: formData.get('type'),
+            channel: formData.get('channel'),
+            subject: formData.get('subject'),
+            notes: formData.get('notes'),
+            outcome: formData.get('outcome'),
+            nextFollowUpDate: formData.get('nextFollowUpDate') || null
+        };
+
+        if (payload.type === 'CALL') {
+            payload.duration = parseInt(formData.get('duration') as string) || 0;
+            payload.recordingUrl = formData.get('recordingUrl');
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/communications', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                alert('Communication logged successfully!');
+                form.reset();
+                setType('COMMENT'); // Reset type
+                if (onSuccess) {
+                    onSuccess();
+                } else {
+                    window.location.reload();
+                }
+            } else {
+                const err = await res.json();
+                alert(err.error || 'Failed to log communication');
+            }
+        } catch (err) {
+            alert('Network error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4">
+            {previousFollowUpId && (
+                <div className="bg-primary-50 border border-primary-200 text-primary-700 px-4 py-2 rounded-lg text-sm flex items-center">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                    </svg>
+                    <span>Replying to a scheduled follow-up task</span>
+                </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {/* Type Selection */}
+                <div className="md:col-span-2">
+                    <label className="label">Interaction Type</label>
+                    <div className="flex space-x-4">
+                        {['COMMENT', 'EMAIL', 'CALL', 'INVOICE_SENT', 'CATALOGUE_SENT', 'MEETING'].map((t) => (
+                            <label key={t} className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="type"
+                                    value={t}
+                                    checked={type === t}
+                                    onChange={(e) => setType(e.target.value)}
+                                    className="text-primary-600 focus:ring-primary-500"
+                                />
+                                <span className="text-sm font-medium text-secondary-700 capitalize">{t.replace('_', ' ').toLowerCase()}</span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+
+                <div>
+                    <label className="label">Channel</label>
+                    <select name="channel" className="input" required>
+                        <option>Email</option>
+                        <option>Phone</option>
+                        <option>WhatsApp</option>
+                        <option>App Notification</option>
+                        <option>In-Person</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label className="label">Outcome</label>
+                    <select name="outcome" className="input">
+                        <option value="">Select outcome...</option>
+                        <option>Interested</option>
+                        <option>Follow-up required</option>
+                        <option>Renewal confirmed</option>
+                        <option>Complaint</option>
+                        <option>Responded</option>
+                        <option>No Answer</option>
+                    </select>
+                </div>
+
+                {/* Conditional Fields based on Type */}
+                {type === 'CALL' && (
+                    <>
+                        <div>
+                            <label className="label">Duration (Seconds)</label>
+                            <input type="number" name="duration" className="input" placeholder="e.g. 300" />
+                        </div>
+                        <div>
+                            <label className="label">Recording URL</label>
+                            <input type="url" name="recordingUrl" className="input" placeholder="https://..." />
+                        </div>
+                    </>
+                )}
+
+                {(type === 'INVOICE_SENT' || type === 'CATALOGUE_SENT') && (
+                    <div className="md:col-span-2">
+                        <label className="label">Reference ID (Invoice/Catalogue #)</label>
+                        <input type="text" name="referenceId" className="input" placeholder="e.g. INV-2025-001" />
+                    </div>
+                )}
+
+                <div className="md:col-span-2">
+                    <label className="label">Subject</label>
+                    <input type="text" name="subject" className="input" required placeholder="e.g. Renewal Discussion" />
+                </div>
+
+                <div className="md:col-span-2">
+                    <label className="label">Message / Notes</label>
+                    <textarea name="notes" className="input h-24" required placeholder="Details of the interaction..."></textarea>
+                </div>
+
+                <div>
+                    <label className="label">Next Follow-up Date</label>
+                    <input type="date" name="nextFollowUpDate" className="input" />
+                </div>
+            </div>
+
+            <div className="flex justify-end">
+                <button
+                    type="submit"
+                    disabled={loading}
+                    className="btn btn-primary px-8"
+                >
+                    {loading ? 'Logging...' : 'Log Communication'}
+                </button>
+            </div>
+        </form>
+    );
+}

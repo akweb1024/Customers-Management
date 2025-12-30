@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
         const user = await prisma.user.findUnique({
             where: { email },
             include: {
+                company: true,
                 customerProfile: {
                     include: {
                         institutionDetails: true,
@@ -54,10 +55,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Generate JWT token
+        const userAny = user as any;
         const token = generateToken({
             id: user.id,
             email: user.email,
             role: user.role,
+            companyId: userAny.companyId || undefined
         });
 
         // Update last login

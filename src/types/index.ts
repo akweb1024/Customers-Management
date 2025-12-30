@@ -1,6 +1,6 @@
-import { UserRole, CustomerType, SubscriptionStatus, SalesChannel, InvoiceStatus, Priority, TaskStatus } from '@prisma/client';
+import { UserRole, CustomerType, SubscriptionStatus, SalesChannel, InvoiceStatus, Priority, TaskStatus, CommunicationType } from '@prisma/client';
 
-export { UserRole, CustomerType, SubscriptionStatus, SalesChannel, InvoiceStatus, Priority, TaskStatus };
+export { UserRole, CustomerType, SubscriptionStatus, SalesChannel, InvoiceStatus, Priority, TaskStatus, CommunicationType };
 
 // User & Auth Types
 export interface AuthUser {
@@ -71,7 +71,8 @@ export interface JournalData {
     frequency: string;
     formatAvailable: string[];
     subjectCategory: string[];
-    basePrice: number;
+    priceINR: number;
+    priceUSD: number;
     isActive?: boolean;
 }
 
@@ -82,7 +83,8 @@ export interface PlanData {
     format: string;
     institutionTier?: string;
     duration: number;
-    price: number;
+    priceINR: number;
+    priceUSD: number;
     startDateRule?: string;
     gracePeriod?: number;
     isActive?: boolean;
@@ -97,6 +99,7 @@ export interface SubscriptionData {
     startDate: Date;
     endDate: Date;
     autoRenew?: boolean;
+    currency: string;
     subtotal: number;
     discount?: number;
     tax?: number;

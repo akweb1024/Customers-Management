@@ -1,22 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
 export async function GET(req: NextRequest) {
     try {
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-        if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const decoded = verifyToken(token);
-        if (!decoded || decoded.role !== 'SUPER_ADMIN') {
+        const decoded = await getAuthenticatedUser();
+        if (!decoded || !['SUPER_ADMIN', 'MANAGER'].includes(decoded.role)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        const { searchParams } = new URL(req.url);
+        const companyId = searchParams.get('companyId');
+
+        const where: any = {};
+        if (decoded.role === 'MANAGER') {
+            where.managerId = decoded.id;
+        }
+
+        if (companyId) {
+            where.companyId = companyId;
+        }
+
         const users = await prisma.user.findMany({
+            where,
             orderBy: { createdAt: 'desc' },
             include: {
+                manager: {
+                    select: {
+                        id: true,
+                        email: true,
+                        role: true
+                    }
+                },
                 _count: {
                     select: {
                         assignedSubscriptions: true,
@@ -42,17 +58,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
     try {
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-        if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const decoded = verifyToken(token);
-        if (!decoded || decoded.role !== 'SUPER_ADMIN') {
+        const decoded = await getAuthenticatedUser();
+        if (!decoded || !['SUPER_ADMIN', 'MANAGER'].includes(decoded.role)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const body = await req.json();
-        const { email, password, role } = body;
+        const { email, password, role, managerId, companyId } = body;
 
         if (!email || !password || !role) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -65,12 +77,21 @@ export async function POST(req: NextRequest) {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Determine company context
+        let targetCompanyId = companyId;
+        if (!targetCompanyId && decoded.role !== 'SUPER_ADMIN') {
+            const currentUser = await prisma.user.findUnique({ where: { id: decoded.id } });
+            targetCompanyId = currentUser?.companyId;
+        }
+
         const user = await prisma.user.create({
             data: {
                 email,
                 password: hashedPassword,
                 role,
-                isActive: true
+                isActive: true,
+                companyId: targetCompanyId,
+                managerId: managerId || (decoded.role === 'MANAGER' ? decoded.id : undefined)
             }
         });
 

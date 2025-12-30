@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
     try {
         // 1. Verify Authentication
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded) {
             return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         }
@@ -58,19 +51,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         // 1. Verify Authentication & Role
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-
-        if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded || decoded.role !== 'SUPER_ADMIN') {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         // 2. Parse Body
         const body = await req.json();
-        const { name, issnPrint, issnOnline, frequency, formatAvailable, subjectCategory, basePrice, plans } = body;
+        const { name, issnPrint, issnOnline, frequency, formatAvailable, subjectCategory, priceINR, priceUSD, plans } = body;
 
         // 3. Create Journal and Plans
         const journal = await prisma.journal.create({
@@ -81,13 +69,15 @@ export async function POST(req: NextRequest) {
                 frequency,
                 formatAvailable,
                 subjectCategory,
-                basePrice: parseFloat(basePrice),
+                priceINR: parseFloat(priceINR || '0'),
+                priceUSD: parseFloat(priceUSD || '0'),
                 plans: {
                     create: plans.map((plan: any) => ({
                         planType: plan.planType,
                         format: plan.format,
                         duration: parseInt(plan.duration),
-                        price: parseFloat(plan.price),
+                        priceINR: parseFloat(plan.priceINR || '0'),
+                        priceUSD: parseFloat(plan.priceUSD || '0'),
                         startDateRule: plan.startDateRule || 'immediate',
                         isActive: true
                     }))

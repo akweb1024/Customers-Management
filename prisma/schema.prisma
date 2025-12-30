@@ -6,12 +6,72 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 // ============================================
 // USER & AUTHENTICATION
 // ============================================
+
+model Company {
+  id          String   @id @default(uuid())
+  name        String
+  registrationNumber String?
+  domain      String?
+  
+  // Contact
+  address     String?
+  phone       String?
+  email       String?
+  website     String?
+  logoUrl     String?
+  
+  // Settings
+  fiscalYearStart Int? // Month (1-12)
+  currency    String   @default("INR")
+  timezone    String   @default("Asia/Kolkata")
+  
+  users       User[]
+  departments Department[]
+  customers   CustomerProfile[]
+  subscriptions Subscription[]
+  communications CommunicationLog[]
+  tasks       Task[]
+  invoices    Invoice[]
+  payments    Payment[]
+  chatRooms   ChatRoom[]
+  supportTickets SupportTicket[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  code        String?  // e.g., "SALES", "FIN", "IT"
+  description String?
+  
+  // Hierarchy
+  parentDepartmentId String?
+  parentDepartment   Department?  @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id])
+  subDepartments     Department[] @relation("DepartmentHierarchy")
+  
+  // Head of Department
+  headUserId  String?
+  headUser    User?    @relation("DepartmentHead", fields: [headUserId], references: [id])
+  
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users       User[]   @relation("DepartmentMembers")
+  
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([companyId, code])
+  @@index([companyId])
+}
 
 model User {
   id            String   @id @default(uuid())
@@ -21,27 +81,54 @@ model User {
   isActive      Boolean  @default(true)
   emailVerified Boolean  @default(false)
   lastLogin     DateTime?
+  
+  // Organization
+  companyId     String?
+  company       Company? @relation(fields: [companyId], references: [id])
+  
+  departmentId  String?
+  department    Department? @relation("DepartmentMembers", fields: [departmentId], references: [id])
+  
+  // Hierarchy
+  managerId     String?
+  manager       User?    @relation("ManagementChain", fields: [managerId], references: [id])
+  subordinates  User[]   @relation("ManagementChain")
+  
+  // Department Leadership
+  headOfDepartments Department[] @relation("DepartmentHead")
+
+  // Chat
+  chatParticipants ChatParticipant[]
+  sentMessages    ChatMessage[]
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   // Relations
   customerProfile CustomerProfile?
   assignedSubscriptions Subscription[] @relation("AssignedSalesExecutive")
+  assignedCustomers CustomerProfile[] @relation("AssignedCustomers")
   communications CommunicationLog[] @relation("UserCommunications")
   auditLogs AuditLog[]
   tasks Task[]
+  assignedTickets SupportTicket[] @relation("AssignedTickets")
+  notifications Notification[]
 
   @@index([email])
   @@index([role])
+  @@index([companyId])
+  @@index([departmentId])
 }
 
 enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  TEAM_LEADER
+  SALES_EXECUTIVE
+  FINANCE_ADMIN
   CUSTOMER
   AGENCY
-  SALES_EXECUTIVE
-  MANAGER
-  FINANCE_ADMIN
-  SUPER_ADMIN
 }
 
 // ============================================
@@ -52,6 +139,11 @@ model CustomerProfile {
   id                String       @id @default(uuid())
   userId            String       @unique
   customerType      CustomerType
+
+  // Assignment
+  assignedToUserId  String?
+  assignedTo        User?        @relation("AssignedCustomers", fields: [assignedToUserId], references: [id])
+
   
   // Common fields
   name              String
@@ -78,15 +170,20 @@ model CustomerProfile {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
+  companyId         String?
+  company           Company?     @relation(fields: [companyId], references: [id])
+
   // Relations
   user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   institutionDetails InstitutionDetails?
   agencyDetails     AgencyDetails?
   subscriptions     Subscription[]
   communications    CommunicationLog[]
+  supportTickets    SupportTicket[]
 
   @@index([customerType])
   @@index([primaryEmail])
+  @@index([companyId])
 }
 
 enum CustomerType {
@@ -146,7 +243,8 @@ model Journal {
   isActive        Boolean  @default(true)
   
   // Pricing
-  basePrice       Float
+  priceINR        Float    @default(0)
+  priceUSD        Float    @default(0)
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -167,7 +265,8 @@ model Plan {
   format          String   // Print/Online/Hybrid
   institutionTier String?  // small/medium/large
   duration        Int      // in months
-  price           Float
+  priceINR        Float    @default(0)
+  priceUSD        Float    @default(0)
   
   // Rules
   startDateRule   String?  // immediate/calendar-year
@@ -203,6 +302,7 @@ model Subscription {
   endDate           DateTime
   autoRenew         Boolean            @default(false)
   status            SubscriptionStatus @default(PENDING_PAYMENT)
+  currency          String             @default("INR")
   
   // Pricing
   subtotal          Float
@@ -219,6 +319,9 @@ model Subscription {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
+  companyId         String?
+  company           Company?           @relation(fields: [companyId], references: [id])
+
   // Relations
   customerProfile   CustomerProfile    @relation(fields: [customerProfileId], references: [id])
   agency            AgencyDetails?     @relation(fields: [agencyId], references: [id])
@@ -232,6 +335,7 @@ model Subscription {
   @@index([status])
   @@index([salesChannel])
   @@index([startDate, endDate])
+  @@index([companyId])
 }
 
 enum SalesChannel {
@@ -240,6 +344,7 @@ enum SalesChannel {
 }
 
 enum SubscriptionStatus {
+  REQUESTED
   ACTIVE
   PENDING_PAYMENT
   EXPIRED
@@ -277,6 +382,7 @@ model Invoice {
   subscriptionId  String
   invoiceNumber   String        @unique
   
+  currency        String        @default("INR")
   amount          Float
   tax             Float
   total           Float
@@ -288,6 +394,9 @@ model Invoice {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  companyId       String?
+  company         Company?      @relation(fields: [companyId], references: [id])
+
   // Relations
   subscription    Subscription  @relation(fields: [subscriptionId], references: [id])
   payments        Payment[]
@@ -295,6 +404,7 @@ model Invoice {
   @@index([subscriptionId])
   @@index([status])
   @@index([invoiceNumber])
+  @@index([companyId])
 }
 
 enum InvoiceStatus {
@@ -318,10 +428,14 @@ model Payment {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  companyId       String?
+  company         Company?      @relation(fields: [companyId], references: [id])
+
   // Relations
   invoice         Invoice       @relation(fields: [invoiceId], references: [id])
 
   @@index([invoiceId])
+  @@index([companyId])
 }
 
 // ============================================
@@ -331,27 +445,49 @@ model Payment {
 model CommunicationLog {
   id                String   @id @default(uuid())
   customerProfileId String
-  userId            String?  // Who logged this communication
+  userId            String?  // Who logger this communication
   
+  type              CommunicationType @default(COMMENT)
   date              DateTime @default(now())
   channel           String   // Email/Phone/WhatsApp/Meeting/Other
   subject           String
   notes             String
   outcome           String?  // interested/follow-up/renewal-confirmed/complaint
   
+  // Specific fields
+  duration          Int?     // in seconds, for calls
+  recordingUrl      String?  // for call records
+  referenceId       String?  // for related Invoices or Catalogs
+  
   nextFollowUpDate  DateTime?
+  isFollowUpCompleted Boolean  @default(false)
   attachments       String?  // Comma-separated file paths/URLs for SQLite compatibility
   
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  companyId         String?
+  company           Company? @relation(fields: [companyId], references: [id])
 
   // Relations
   customerProfile   CustomerProfile @relation(fields: [customerProfileId], references: [id])
   user              User?           @relation("UserCommunications", fields: [userId], references: [id])
 
   @@index([customerProfileId])
+  @@index([type])
   @@index([date])
   @@index([nextFollowUpDate])
+  @@index([companyId])
+}
+
+enum CommunicationType {
+  EMAIL
+  CALL
+  COMMENT
+  INQUIRY
+  INVOICE_SENT
+  CATALOGUE_SENT
+  MEETING
 }
 
 model Task {
@@ -371,12 +507,16 @@ model Task {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
+  companyId       String?
+  company         Company?   @relation(fields: [companyId], references: [id])
+
   // Relations
   user            User       @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([status])
   @@index([dueDate])
+  @@index([companyId])
 }
 
 enum Priority {
@@ -415,4 +555,106 @@ model AuditLog {
   @@index([userId])
   @@index([entity, entityId])
   @@index([createdAt])
+}
+
+// ============================================
+// CHAT & SUPPORT SYSTEM
+// ============================================
+
+model ChatRoom {
+  id            String            @id @default(uuid())
+  name          String?           // Optional for group chats
+  isGroup       Boolean           @default(false)
+  companyId     String?
+  company       Company?          @relation(fields: [companyId], references: [id])
+  
+  messages      ChatMessage[]
+  participants  ChatParticipant[]
+  
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  
+  supportTicket SupportTicket?
+
+  @@index([companyId])
+}
+
+model ChatParticipant {
+  id         String   @id @default(uuid())
+  roomId     String
+  userId     String
+  
+  room       ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  joinedAt   DateTime @default(now())
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id          String   @id @default(uuid())
+  roomId      String
+  senderId    String
+  content     String
+  
+  room        ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender      User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([roomId])
+  @@index([senderId])
+}
+
+model SupportTicket {
+  id                String   @id @default(uuid())
+  companyId         String?
+  company           Company? @relation(fields: [companyId], references: [id])
+  customerProfileId String
+  customerProfile   CustomerProfile @relation(fields: [customerProfileId], references: [id])
+  
+  subject           String
+  description       String
+  status            TicketStatus @default(OPEN)
+  priority          Priority     @default(MEDIUM)
+  
+  assignedToId      String?
+  assignedTo        User?   @relation("AssignedTickets", fields: [assignedToId], references: [id])
+  
+  chatRoomId        String?  @unique
+  chatRoom          ChatRoom? @relation(fields: [chatRoomId], references: [id])
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([customerProfileId])
+  @@index([status])
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title       String
+  message     String
+  type        String   @default("INFO") // INFO, SUCCESS, WARNING, DANGER, CHAT, TICKET
+  link        String?
+  isRead      Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
 }

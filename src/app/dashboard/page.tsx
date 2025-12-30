@@ -72,50 +72,39 @@ export default function DashboardPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-secondary-900">
-                            Welcome back, {user?.customerProfile?.name || user?.name || 'User'}!
+                            Welcome back, {user?.customerProfile?.name || 'User'}!
                         </h1>
                         <p className="text-secondary-600 mt-1">
-                            {user?.role === 'CUSTOMER'
-                                ? "Manage your subscriptions and journals in one place"
-                                : "Here's the latest update on your business metrics"}
+                            Here's what's happening with your subscriptions today
                         </p>
                     </div>
-                    {user?.role !== 'CUSTOMER' && (
-                        <div className="mt-4 sm:mt-0">
-                            <Link href="/dashboard/subscriptions/new" className="btn btn-primary">
-                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                                New Subscription
-                            </Link>
-                        </div>
-                    )}
+                    <div className="mt-4 sm:mt-0">
+                        <Link href="/dashboard/subscriptions/new" className="btn btn-primary">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            New Subscription
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Stats Grid */}
-                {stats && stats.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {stats.map((stat: any) => (
-                            <div key={stat.name} className="stat-card group hover:shadow-xl transition-all duration-300">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className={`stat-card-icon ${stat.color} text-white`}>
-                                        {stat.icon}
-                                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {stats?.map((stat: any) => (
+                        <div key={stat.name} className="stat-card">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className={`stat-card-icon ${stat.color} text-white`}>
+                                    {stat.icon}
                                 </div>
-                                <h3 className="text-secondary-600 text-sm font-medium">{stat.name}</h3>
-                                <p className="text-3xl font-bold text-secondary-900 mt-2">{stat.value}</p>
-                                <p className={`text-sm mt-2 flex items-center ${stat.changePositive ? 'text-success-600' : 'text-warning-600'}`}>
-                                    {stat.changePositive && <span className="mr-1">↑</span>}
-                                    {stat.change}
-                                </p>
                             </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="p-8 text-center bg-white rounded-2xl border border-dashed border-secondary-300">
-                        <p className="text-secondary-500 italic">No statistics available for this account yet.</p>
-                    </div>
-                )}
+                            <h3 className="text-secondary-600 text-sm font-medium">{stat.name}</h3>
+                            <p className="text-3xl font-bold text-secondary-900 mt-2">{stat.value}</p>
+                            <p className={`text-sm mt-2 ${stat.changePositive ? 'text-success-600' : 'text-warning-600'}`}>
+                                {stat.change}
+                            </p>
+                        </div>
+                    ))}
+                </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Recent Activity */}
@@ -127,43 +116,64 @@ export default function DashboardPage() {
                             </button>
                         </div>
                         <div className="space-y-4">
-                            {recentActivities && recentActivities.length > 0 ? (
-                                recentActivities.map((activity: any) => (
-                                    <div key={activity.id} className="flex items-start space-x-3 pb-4 border-b border-secondary-100 last:border-0 last:pb-0">
-                                        <div className="text-2xl">{activity.icon}</div>
-                                        <div className="flex-1">
-                                            <p className="text-secondary-900">{activity.message}</p>
-                                            <p className="text-sm text-secondary-500 mt-1">{activity.time}</p>
-                                        </div>
+                            {recentActivities?.map((activity: any) => (
+                                <div key={activity.id} className="flex items-start space-x-3 pb-4 border-b border-secondary-100 last:border-0 last:pb-0">
+                                    <div className="text-2xl">{activity.icon}</div>
+                                    <div className="flex-1">
+                                        <p className="text-secondary-900">{activity.message}</p>
+                                        <p className="text-sm text-secondary-500 mt-1">{activity.time}</p>
                                     </div>
-                                ))
-                            ) : (
-                                <div className="py-10 text-center">
-                                    <div className="text-4xl mb-3">🎐</div>
-                                    <p className="text-secondary-500">No recent activity found.</p>
                                 </div>
+                            ))}
+                            {(!recentActivities || recentActivities.length === 0) && (
+                                <p className="text-secondary-500 text-center py-4 italic">No recent activity found.</p>
                             )}
                         </div>
                     </div>
 
-                    {/* Upcoming Renewals */}
-                    <div className="card-premium">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-bold text-secondary-900">Upcoming Renewals</h2>
-                            <button className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                                View all
-                            </button>
+                    {/* Subscription Request Banner for Customers */}
+                    {user?.role === 'CUSTOMER' ? (
+                        <div className="card-premium bg-gradient-to-br from-primary-600 to-primary-800 text-white border-0">
+                            <div className="h-full flex flex-col justify-between">
+                                <div>
+                                    <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Limited Offer</span>
+                                    <h2 className="text-3xl font-bold mt-4">Expand Your Library</h2>
+                                    <p className="mt-2 text-primary-100">
+                                        Request access to premium academic journals and stay ahead in your research field.
+                                    </p>
+                                </div>
+                                <div className="mt-8">
+                                    <Link
+                                        href="/dashboard/subscriptions/new"
+                                        className="inline-flex items-center px-6 py-3 bg-white text-primary-700 font-bold rounded-xl hover:bg-primary-50 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                                    >
+                                        Browse Journals & Request Subscription
+                                        <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                        </svg>
+                                    </Link>
+                                </div>
+                            </div>
                         </div>
-                        <div className="space-y-4">
-                            {upcomingRenewals && upcomingRenewals.length > 0 ? (
-                                upcomingRenewals.map((renewal: any) => (
-                                    <div key={renewal.id} className="p-4 bg-secondary-50 rounded-lg hover:bg-secondary-100 transition-colors border border-transparent hover:border-secondary-200">
+                    ) : (
+                        /* Upcoming Renewals for Staff */
+                        <div className="card-premium">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-xl font-bold text-secondary-900">Upcoming Renewals</h2>
+                                <button className="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                                    View all
+                                </button>
+                            </div>
+                            <div className="space-y-4">
+                                {upcomingRenewals?.map((renewal: any) => (
+                                    <div key={renewal.id} className="p-4 bg-secondary-50 rounded-lg hover:bg-secondary-100 transition-colors">
                                         <div className="flex items-start justify-between mb-2">
                                             <div>
                                                 <h4 className="font-semibold text-secondary-900">{renewal.customer}</h4>
                                                 <p className="text-sm text-secondary-600">{renewal.journal}</p>
                                             </div>
-                                            <span className={`badge ${renewal.status === 'auto-renew' ? 'badge-success' : 'badge-warning'}`}>
+                                            <span className={`badge ${renewal.status === 'contacted' ? 'badge-success' : 'badge-warning'
+                                                }`}>
                                                 {renewal.status}
                                             </span>
                                         </div>
@@ -172,15 +182,13 @@ export default function DashboardPage() {
                                             <span className="font-bold text-secondary-900">{renewal.amount}</span>
                                         </div>
                                     </div>
-                                ))
-                            ) : (
-                                <div className="py-10 text-center">
-                                    <div className="text-4xl mb-3">📅</div>
-                                    <p className="text-secondary-500">No renewals due in the next 30 days.</p>
-                                </div>
-                            )}
+                                ))}
+                                {(!upcomingRenewals || upcomingRenewals.length === 0) && (
+                                    <p className="text-secondary-500 text-center py-4 italic">No upcoming renewals found.</p>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Quick Actions */}

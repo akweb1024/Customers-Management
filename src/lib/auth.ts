@@ -1,57 +1,48 @@
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { AuthUser } from '@/types';
+import bcrypt from 'bcryptjs';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 
-/**
- * Hash a password using bcrypt
- */
-export async function hashPassword(password: string): Promise<string> {
-    const salt = await bcrypt.genSalt(12);
-    return bcrypt.hash(password, salt);
+export interface TokenPayload {
+    id: string;
+    email: string;
+    role: string;
+    companyId?: string;
 }
 
-/**
- * Verify a password against a hash
- */
-export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
-    return bcrypt.compare(password, hashedPassword);
-}
+export const generateToken = (payload: TokenPayload): string => {
+    return jwt.sign(payload, JWT_SECRET, { expiresIn: '1d' });
+};
 
-/**
- * Generate a JWT token for a user
- */
-export function generateToken(user: AuthUser): string {
-    return jwt.sign(
-        {
-            id: user.id,
-            email: user.email,
-            role: user.role,
-        },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-    );
-}
-
-/**
- * Verify and decode a JWT token
- */
-export function verifyToken(token: string): AuthUser | null {
+export const verifyToken = (token: string): TokenPayload | null => {
     try {
-        const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
-        return decoded;
+        return jwt.verify(token, JWT_SECRET) as TokenPayload;
     } catch (error) {
         return null;
     }
-}
+};
 
-/**
- * Extract token from Authorization header
- */
-export function extractTokenFromHeader(authHeader: string | null): string | null {
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+export const hashPassword = async (password: string): Promise<string> => {
+    return await bcrypt.hash(password, 10);
+};
+
+export const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
+    return await bcrypt.compare(password, hash);
+};
+
+// Helper for server components/API routes
+import { headers } from 'next/headers';
+
+export const getAuthenticatedUser = async (): Promise<TokenPayload | null> => {
+    try {
+        const headersList = await headers();
+        const authHeader = headersList.get('authorization');
+        const token = authHeader?.split(' ')[1];
+
+        if (!token) return null;
+
+        return verifyToken(token);
+    } catch (error) {
         return null;
     }
-    return authHeader.substring(7);
-}
+};

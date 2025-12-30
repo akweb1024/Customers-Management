@@ -134,8 +134,13 @@ export default function ProfilePage() {
                     <div>
                         <h1 className="text-3xl font-bold text-secondary-900">{user.customerProfile?.name || 'Staff Member'}</h1>
                         <p className="text-secondary-600 font-medium">{user.email}</p>
+                        {user.company && (
+                            <p className="text-primary-600 font-bold text-sm flex items-center mt-1">
+                                <span className="mr-1">🏢</span> {user.company.name}
+                            </p>
+                        )}
                         <div className="flex items-center space-x-2 mt-2">
-                            <span className="badge badge-primary">{user.role}</span>
+                            <span className="badge badge-primary">{user.role.replace('_', ' ')}</span>
                             <span className="text-xs text-secondary-400 font-bold uppercase tracking-widest">
                                 Member since <FormattedDate date={user.createdAt} />
                             </span>

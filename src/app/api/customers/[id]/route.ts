@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function GET(
     req: NextRequest,
@@ -10,14 +10,7 @@ export async function GET(
         const { id } = await params;
 
         // 1. Verify Authentication
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded) {
             return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         }
@@ -37,6 +30,9 @@ export async function GET(
                 },
                 institutionDetails: true,
                 agencyDetails: true,
+                assignedTo: {
+                    select: { id: true, email: true, role: true, customerProfile: { select: { name: true } } }
+                },
                 subscriptions: {
                     include: {
                         items: {
@@ -47,7 +43,7 @@ export async function GET(
                     orderBy: { createdAt: 'desc' }
                 },
                 communications: {
-                    include: { user: { select: { role: true } } },
+                    include: { user: { select: { role: true, customerProfile: { select: { name: true } } } } },
                     orderBy: { date: 'desc' }
                 }
             }
@@ -71,11 +67,7 @@ export async function PATCH(
 ) {
     try {
         const { id } = await params;
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-        if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded || !['SUPER_ADMIN', 'MANAGER', 'SALES_EXECUTIVE'].includes(decoded.role)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
@@ -83,13 +75,17 @@ export async function PATCH(
         const body = await req.json();
         const {
             institutionDetails,
+            assignedToUserId, // Allow updating assignment
             ...profileData
         } = body;
 
         const result = await prisma.$transaction(async (tx) => {
             const updatedProfile = await tx.customerProfile.update({
                 where: { id: id },
-                data: profileData
+                data: {
+                    ...profileData,
+                    ...(assignedToUserId !== undefined && { assignedToUserId })
+                }
             });
 
             if (institutionDetails && updatedProfile.customerType === 'INSTITUTION') {

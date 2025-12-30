@@ -17,13 +17,14 @@ export default function NewJournalPage() {
         frequency: 'Monthly',
         formatAvailable: 'Print,Online,Hybrid',
         subjectCategory: '',
-        basePrice: '',
+        priceINR: '',
+        priceUSD: '',
     });
 
     const [plans, setPlans] = useState([
-        { planType: 'Annual', format: 'Online', duration: '12', price: '' },
-        { planType: 'Annual', format: 'Print', duration: '12', price: '' },
-        { planType: 'Annual', format: 'Hybrid', duration: '12', price: '' },
+        { planType: 'Annual', format: 'Online', duration: '12', priceINR: '', priceUSD: '' },
+        { planType: 'Annual', format: 'Print', duration: '12', priceINR: '', priceUSD: '' },
+        { planType: 'Annual', format: 'Hybrid', duration: '12', priceINR: '', priceUSD: '' },
     ]);
 
     useEffect(() => {
@@ -62,7 +63,7 @@ export default function NewJournalPage() {
                 },
                 body: JSON.stringify({
                     ...formData,
-                    plans: plans.filter(p => p.price !== '') // Only include plans with price
+                    plans: plans.filter(p => p.priceINR !== '' || p.priceUSD !== '') // Only include plans with at least one price
                 })
             });
 
@@ -141,14 +142,25 @@ export default function NewJournalPage() {
                                 </select>
                             </div>
                             <div>
-                                <label className="label">Base Price ($)*</label>
+                                <label className="label">Base Price (INR)*</label>
                                 <input
                                     type="number"
-                                    name="basePrice"
+                                    name="priceINR"
                                     required
                                     className="input"
                                     placeholder="0.00"
-                                    value={formData.basePrice}
+                                    value={formData.priceINR}
+                                    onChange={handleJournalChange}
+                                />
+                            </div>
+                            <div>
+                                <label className="label">Base Price (USD)</label>
+                                <input
+                                    type="number"
+                                    name="priceUSD"
+                                    className="input"
+                                    placeholder="0.00"
+                                    value={formData.priceUSD}
                                     onChange={handleJournalChange}
                                 />
                             </div>
@@ -173,28 +185,38 @@ export default function NewJournalPage() {
 
                         <div className="space-y-4">
                             {plans.map((plan, index) => (
-                                <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-secondary-50 rounded-lg border border-secondary-100">
-                                    <div>
+                                <div key={index} className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4 bg-secondary-50 rounded-lg border border-secondary-100">
+                                    <div className="md:col-span-1">
                                         <label className="text-xs font-bold text-secondary-400 uppercase">Type</label>
                                         <div className="font-semibold text-secondary-800">{plan.planType}</div>
                                     </div>
-                                    <div>
+                                    <div className="md:col-span-1">
                                         <label className="text-xs font-bold text-secondary-400 uppercase">Format</label>
                                         <div className="font-semibold text-secondary-800">{plan.format}</div>
                                     </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-secondary-400 uppercase">Duration (Months)</label>
-                                        <div className="font-semibold text-secondary-800">{plan.duration}</div>
+                                    <div className="md:col-span-1">
+                                        <label className="text-xs font-bold text-secondary-400 uppercase">Duration</label>
+                                        <div className="font-semibold text-secondary-800">{plan.duration} Mo</div>
                                     </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-secondary-400 uppercase">Price ($)*</label>
+                                    <div className="md:col-span-1.5">
+                                        <label className="text-xs font-bold text-secondary-400 uppercase">Price (INR)*</label>
                                         <input
                                             type="number"
                                             required={index === 0}
                                             placeholder="0.00"
                                             className="input py-1 h-8 text-sm"
-                                            value={plan.price}
-                                            onChange={(e) => handlePlanChange(index, 'price', e.target.value)}
+                                            value={plan.priceINR}
+                                            onChange={(e) => handlePlanChange(index, 'priceINR', e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="md:col-span-1.5">
+                                        <label className="text-xs font-bold text-secondary-400 uppercase">Price (USD)</label>
+                                        <input
+                                            type="number"
+                                            placeholder="0.00"
+                                            className="input py-1 h-8 text-sm"
+                                            value={plan.priceUSD}
+                                            onChange={(e) => handlePlanChange(index, 'priceUSD', e.target.value)}
                                         />
                                     </div>
                                 </div>

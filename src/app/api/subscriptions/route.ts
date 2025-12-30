@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 import { SubscriptionStatus } from '@/types';
 
 export async function GET(req: NextRequest) {
     try {
         // 1. Verify Authentication
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded || !decoded.role) {
             return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         }
@@ -29,6 +22,12 @@ export async function GET(req: NextRequest) {
 
         // 3. Build Filter
         const where: any = {};
+        const userCompanyId = (decoded as any).companyId;
+
+        // Multi-tenancy: Restrict to company if not SUPER_ADMIN
+        if (decoded.role !== 'SUPER_ADMIN' && userCompanyId) {
+            where.companyId = userCompanyId;
+        }
 
         if (status) {
             where.status = status;

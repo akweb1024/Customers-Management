@@ -69,6 +69,7 @@ export default function SubscriptionsPage() {
 
     const getStatusBadgeClass = (status: SubscriptionStatus) => {
         switch (status) {
+            case 'REQUESTED': return 'bg-blue-100 text-blue-700';
             case 'ACTIVE': return 'badge-success';
             case 'PENDING_PAYMENT': return 'badge-warning';
             case 'EXPIRED': return 'badge-danger';
@@ -88,11 +89,9 @@ export default function SubscriptionsPage() {
                             {userRole === 'CUSTOMER' ? 'Manage your active and past subscriptions' : 'Manage global journal subscriptions and renewals'}
                         </p>
                     </div>
-                    {userRole !== 'CUSTOMER' && (
-                        <Link href="/dashboard/subscriptions/new" className="btn btn-primary px-6">
-                            New Subscription
-                        </Link>
-                    )}
+                    <Link href="/dashboard/subscriptions/new" className="btn btn-primary px-6">
+                        {userRole === 'CUSTOMER' ? 'Request Subscription' : 'New Subscription'}
+                    </Link>
                 </div>
 
                 {/* Filters */}
@@ -119,6 +118,7 @@ export default function SubscriptionsPage() {
                                 onChange={(e) => setStatusFilter(e.target.value)}
                             >
                                 <option value="">All Statuses</option>
+                                <option value="REQUESTED">Requested</option>
                                 <option value="ACTIVE">Active</option>
                                 <option value="PENDING_PAYMENT">Pending Payment</option>
                                 <option value="EXPIRED">Expired</option>

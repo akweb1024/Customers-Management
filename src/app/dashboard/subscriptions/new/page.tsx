@@ -21,14 +21,22 @@ export default function NewSubscriptionPage() {
         endDate: new Date(new Date().getFullYear() + 1, new Date().getMonth(), new Date().getDate()).toISOString().split('T')[0],
         salesChannel: 'DIRECT',
         items: [] as any[], // { journalId, planId, quantity, journalName, planName, price }
-        autoRenew: false
+        autoRenew: false,
+        currency: 'INR'
     });
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
+        let role = 'CUSTOMER';
         if (userData) {
             const user = JSON.parse(userData);
-            setUserRole(user.role);
+            role = user.role;
+            setUserRole(role);
+
+            // If customer, pre-assign profile or skip step 1
+            if (role === 'CUSTOMER') {
+                setStep(2);
+            }
         }
 
         const fetchData = async () => {
@@ -36,12 +44,17 @@ export default function NewSubscriptionPage() {
             const searchParams = new URLSearchParams(window.location.search);
             const preSelectedId = searchParams.get('customerId');
 
+            // Only fetch customers if not a customer role
+            const fetchCustomers = role !== 'CUSTOMER';
+
             const [custRes, jourRes] = await Promise.all([
-                fetch('/api/customers?limit=100', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetchCustomers
+                    ? fetch('/api/customers?limit=100', { headers: { 'Authorization': `Bearer ${token}` } })
+                    : Promise.resolve(null),
                 fetch('/api/journals', { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
 
-            if (custRes.ok) {
+            if (custRes && custRes.ok) {
                 const data = await custRes.json();
                 setCustomers(data.data);
 
@@ -62,6 +75,8 @@ export default function NewSubscriptionPage() {
     const addItem = (journal: any, plan: any) => {
         if (formData.items.some(i => i.journalId === journal.id)) return;
 
+        const price = formData.currency === 'INR' ? (plan.priceINR || 0) : (plan.priceUSD || 0);
+
         setFormData({
             ...formData,
             items: [...formData.items, {
@@ -70,7 +85,7 @@ export default function NewSubscriptionPage() {
                 quantity: 1,
                 journalName: journal.name,
                 planName: `${plan.planType} - ${plan.format}`,
-                price: plan.price
+                price: price
             }]
         });
     };
@@ -86,7 +101,9 @@ export default function NewSubscriptionPage() {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('/api/subscriptions/create', {
+            const endpoint = userRole === 'CUSTOMER' ? '/api/subscriptions/request' : '/api/subscriptions/create';
+
+            const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -96,19 +113,22 @@ export default function NewSubscriptionPage() {
             });
 
             if (res.ok) {
+                alert(userRole === 'CUSTOMER' ? 'Your subscription request has been submitted successfully!' : 'Subscription created successfully!');
                 router.push('/dashboard/subscriptions');
             } else {
                 const err = await res.json();
-                alert(err.error);
+                alert(err.error || 'Something went wrong');
             }
         } catch (error) {
             console.error('Submit Error:', error);
+            alert('Failed to submit subscription. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
     const totalAmount = formData.items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const currencySymbol = formData.currency === 'INR' ? '₹' : '$';
 
     return (
         <DashboardLayout userRole={userRole}>
@@ -176,7 +196,22 @@ export default function NewSubscriptionPage() {
                 {step === 2 && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
                         <div className="card-premium p-6">
-                            <h3 className="text-xl font-bold text-secondary-900 mb-6">Step 2: Selection Catalog</h3>
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-bold text-secondary-900">Step 2: Selection Catalog</h3>
+                                <select
+                                    className="input py-1 px-3 w-auto"
+                                    value={formData.currency}
+                                    onChange={(e) => {
+                                        if (formData.items.length > 0) {
+                                            if (!confirm('Changing currency will clear your current selection. Continue?')) return;
+                                        }
+                                        setFormData({ ...formData, currency: e.target.value, items: [] });
+                                    }}
+                                >
+                                    <option value="INR">INR (₹)</option>
+                                    <option value="USD">USD ($)</option>
+                                </select>
+                            </div>
                             <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
                                 {journals.map((j) => (
                                     <div key={j.id} className="p-4 rounded-xl border border-secondary-100 hover:border-primary-200 transition-colors">
@@ -198,7 +233,10 @@ export default function NewSubscriptionPage() {
                                                 >
                                                     <div className="text-sm font-bold">{p.planType}</div>
                                                     <div className="text-xs opacity-75">{p.format}</div>
-                                                    <div className="text-sm mt-1 font-bold">${p.price}</div>
+                                                    <div className="text-sm mt-1 font-bold">
+                                                        {formData.currency === 'INR' ? '₹' : '$'}
+                                                        {formData.currency === 'INR' ? (p.priceINR?.toLocaleString() || 0) : (p.priceUSD?.toLocaleString() || 0)}
+                                                    </div>
                                                 </button>
                                             ))}
                                         </div>
@@ -219,7 +257,7 @@ export default function NewSubscriptionPage() {
                                                 <span className="text-secondary-500 ml-2">({item.planName})</span>
                                             </div>
                                             <div className="flex items-center space-x-4">
-                                                <span className="font-bold text-primary-600">${item.price}</span>
+                                                <span className="font-bold text-primary-600">{currencySymbol}{item.price.toLocaleString()}</span>
                                                 <button onClick={() => removeItem(item.journalId)} className="text-danger-500 hover:text-danger-700">
                                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -230,7 +268,7 @@ export default function NewSubscriptionPage() {
                                     ))}
                                     <div className="flex justify-between items-center border-t border-secondary-200 pt-4 mt-4">
                                         <div className="text-lg font-bold text-secondary-900">Total</div>
-                                        <div className="text-2xl font-bold text-primary-600">${totalAmount}</div>
+                                        <div className="text-2xl font-bold text-primary-600">{currencySymbol}{totalAmount.toLocaleString()}</div>
                                     </div>
                                     <button
                                         onClick={() => setStep(3)}
@@ -305,7 +343,7 @@ export default function NewSubscriptionPage() {
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-primary-700">Initial Invoice</span>
-                                <span className="font-bold text-primary-900">${totalAmount}</span>
+                                <span className="font-bold text-primary-900">{currencySymbol}{totalAmount.toLocaleString()}</span>
                             </div>
                         </div>
 
@@ -329,4 +367,5 @@ export default function NewSubscriptionPage() {
             </div>
         </DashboardLayout>
     );
+
 }

@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
             endDate,
             salesChannel,
             items, // list of { journalId, planId, quantity }
-            autoRenew
+            autoRenew,
+            currency = 'INR'
         } = body;
 
         // 2. Validation
@@ -40,14 +41,15 @@ export async function POST(request: NextRequest) {
 
             if (!plan) return NextResponse.json({ error: `Plan ${item.planId} not found` }, { status: 404 });
 
-            const itemPrice = plan.price * (item.quantity || 1);
+            const price = currency === 'USD' ? plan.priceUSD : plan.priceINR;
+            const itemPrice = price * (item.quantity || 1);
             total += itemPrice;
 
             subscriptionItems.push({
                 journalId: plan.journalId,
                 planId: plan.id,
                 quantity: item.quantity || 1,
-                price: plan.price
+                price: price
             });
         }
 
@@ -64,6 +66,7 @@ export async function POST(request: NextRequest) {
                         salesChannel,
                         autoRenew: autoRenew || false,
                         status: 'PENDING_PAYMENT',
+                        currency,
                         subtotal: total,
                         total: total,
                         salesExecutiveId: decoded.id,
@@ -80,6 +83,7 @@ export async function POST(request: NextRequest) {
                     data: {
                         subscriptionId: subscription.id,
                         invoiceNumber,
+                        currency,
                         amount: total,
                         tax: 0,
                         total: total,

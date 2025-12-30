@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import FormattedDate from '@/components/common/FormattedDate';
+import CommunicationForm from '@/components/dashboard/CommunicationForm';
 
 export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -13,6 +14,27 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
     const [loading, setLoading] = useState(true);
     const [userRole, setUserRole] = useState<string>('CUSTOMER');
     const [activeTab, setActiveTab] = useState('overview');
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [editingLog, setEditingLog] = useState<any>(null);
+    const [staffList, setStaffList] = useState<any[]>([]);
+    const [activeFollowUpId, setActiveFollowUpId] = useState<string | null>(null);
+
+    const formRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (showEditModal && ['SUPER_ADMIN', 'MANAGER'].includes(userRole)) {
+            const fetchStaff = async () => {
+                const token = localStorage.getItem('token');
+                const res = await fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (res.ok) {
+                    const data = await res.json();
+                    setStaffList(data.filter((u: any) => ['SALES_EXECUTIVE', 'MANAGER'].includes(u.role)));
+                }
+            };
+            fetchStaff();
+        }
+    }, [showEditModal, userRole]);
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -63,8 +85,38 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         { id: 'billing', name: 'Billing & History', icon: '💰' },
     ];
 
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [actionLoading, setActionLoading] = useState(false);
+    const handleStartChat = async () => {
+        if (!customer.userId) {
+            alert("This customer does not have a linked user account for chat.");
+            return;
+        }
+        setActionLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/chat/rooms', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    participantIds: [customer.userId],
+                    isGroup: false
+                })
+            });
+
+            if (res.ok) {
+                const room = await res.json();
+                router.push(`/dashboard/chat?roomId=${room.id}`);
+            } else {
+                alert('Failed to start chat');
+            }
+        } catch (err) {
+            console.error('Chat error:', err);
+        } finally {
+            setActionLoading(false);
+        }
+    };
 
     const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -76,6 +128,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             primaryPhone: formData.get('primaryPhone'),
             secondaryEmail: formData.get('secondaryEmail'),
             website: formData.get('website'),
+            assignedToUserId: formData.get('assignedToUserId') || null,
         };
 
         if (customer.customerType === 'INSTITUTION') {
@@ -111,6 +164,46 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         }
     };
 
+    const handleUpdateLog = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        setActionLoading(true);
+        const formData = new FormData(e.currentTarget);
+        const payload = {
+            nextFollowUpDate: formData.get('nextFollowUpDate') || null,
+            outcome: formData.get('outcome'),
+            notes: formData.get('notes')
+        };
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`/api/communications/${editingLog.id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                // Update local state instead of full reload
+                const updatedLog = await res.json();
+                setCustomer({
+                    ...customer,
+                    communications: customer.communications.map((c: any) => c.id === updatedLog.id ? { ...c, ...updatedLog } : c)
+                });
+                setEditingLog(null);
+            } else {
+                alert('Failed to update log');
+            }
+        } catch (error) {
+            console.error('Update error:', error);
+            alert('Error updating log');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     return (
         <DashboardLayout userRole={userRole}>
             <div className="space-y-6">
@@ -138,6 +231,13 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                     <div className="flex space-x-3">
                         <button
+                            onClick={handleStartChat}
+                            disabled={actionLoading}
+                            className="btn btn-secondary bg-white text-primary-600 border-primary-100 font-bold"
+                        >
+                            💬 Chat
+                        </button>
+                        <button
                             onClick={() => setShowEditModal(true)}
                             className="btn btn-secondary bg-white"
                         >
@@ -152,7 +252,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                 </div>
 
-                {/* Edit Modal */}
+                {/* Edit Profile Modal */}
                 {showEditModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-secondary-900/50 backdrop-blur-sm p-4">
                         <div className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -179,6 +279,27 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                                         <label className="label">Website</label>
                                         <input name="website" className="input" defaultValue={customer.website} placeholder="https://" />
                                     </div>
+
+                                    {/* Assignment - Only for Admins/Managers */}
+                                    {['SUPER_ADMIN', 'MANAGER'].includes(userRole) && (
+                                        <div className="md:col-span-2 pt-4 border-t border-secondary-100">
+                                            <h4 className="font-bold text-secondary-900 mb-2">Customer Assignment</h4>
+                                            <label className="label">Assign to Sales Executive</label>
+                                            <select
+                                                name="assignedToUserId"
+                                                className="input"
+                                                defaultValue={customer.assignedToUserId || ''}
+                                            >
+                                                <option value="">-- Unassigned --</option>
+                                                {/* We need to fetch staff list. For now, populating on click if possible or pre-fetch */}
+                                                {staffList.map((staff: any) => (
+                                                    <option key={staff.id} value={staff.id}>
+                                                        {staff.customerProfile?.name || staff.email} ({staff.role})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {customer.customerType === 'INSTITUTION' && (
@@ -213,6 +334,66 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                                         type="submit"
                                         disabled={actionLoading}
                                         className="btn btn-primary px-10"
+                                    >
+                                        {actionLoading ? 'Saving...' : 'Save Changes'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* Edit Log Modal */}
+                {editingLog && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-secondary-900/50 backdrop-blur-sm p-4">
+                        <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+                            <h3 className="text-xl font-bold text-secondary-900 mb-4">Update Communication</h3>
+                            <form onSubmit={handleUpdateLog} className="space-y-4">
+                                <div>
+                                    <label className="label">Next Follow-up Date</label>
+                                    <input
+                                        type="date"
+                                        name="nextFollowUpDate"
+                                        className="input"
+                                        defaultValue={editingLog.nextFollowUpDate ? editingLog.nextFollowUpDate.split('T')[0] : ''}
+                                    />
+                                    <p className="text-xs text-secondary-500 mt-1">Clear to mark as completed</p>
+                                </div>
+                                <div>
+                                    <label className="label">Outcome</label>
+                                    <select
+                                        name="outcome"
+                                        className="input"
+                                        defaultValue={editingLog.outcome || ''}
+                                    >
+                                        <option value="">Select...</option>
+                                        <option value="Interested">Interested</option>
+                                        <option value="Follow-up required">Follow-up required</option>
+                                        <option value="Resolved">Resolved / Completed</option>
+                                        <option value="No Answer">No Answer</option>
+                                        <option value="Cancelled">Cancelled</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="label">Update Notes</label>
+                                    <textarea
+                                        name="notes"
+                                        className="input h-20"
+                                        defaultValue={editingLog.notes}
+                                    ></textarea>
+                                </div>
+                                <div className="flex justify-end space-x-3 pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingLog(null)}
+                                        className="btn btn-secondary"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={actionLoading}
+                                        className="btn btn-primary"
                                     >
                                         {actionLoading ? 'Saving...' : 'Save Changes'}
                                     </button>
@@ -266,6 +447,12 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                                         <div>
                                             <label className="text-sm text-secondary-500">Billing Address</label>
                                             <p className="font-medium text-secondary-900">{customer.billingAddress || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm text-secondary-500">Account Manager</label>
+                                            <p className="font-medium text-primary-600">
+                                                {customer.assignedTo?.customerProfile?.name || customer.assignedTo?.email || 'Unassigned'}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -333,7 +520,9 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                                             <div className="grid grid-cols-3 gap-4 text-sm bg-secondary-50 p-3 rounded-lg border border-secondary-100">
                                                 <div>
                                                     <p className="text-xs text-secondary-500 uppercase font-bold tracking-tighter">Total Price</p>
-                                                    <p className="font-bold text-secondary-900">${sub.total.toLocaleString()}</p>
+                                                    <p className="font-bold text-secondary-900">
+                                                        {sub.currency === 'INR' ? '₹' : '$'}{sub.total.toLocaleString()}
+                                                    </p>
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-secondary-500 uppercase font-bold tracking-tighter">Channel</p>
@@ -353,84 +542,16 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                         {activeTab === 'communication' && (
                             <div className="space-y-6">
                                 {/* Log New Communication */}
-                                <div className="card-premium">
+                                <div className="card-premium" ref={formRef}>
                                     <h3 className="text-lg font-bold text-secondary-900 mb-4 border-l-4 border-primary-500 pl-3">Log New Communication</h3>
-                                    <form onSubmit={async (e) => {
-                                        e.preventDefault();
-                                        const form = e.target as HTMLFormElement;
-                                        const formData = new FormData(form);
-                                        const payload = {
-                                            customerProfileId: customer.id,
-                                            channel: formData.get('channel'),
-                                            subject: formData.get('subject'),
-                                            notes: formData.get('notes'),
-                                            outcome: formData.get('outcome'),
-                                            nextFollowUpDate: formData.get('nextFollowUpDate') || null
-                                        };
-
-                                        try {
-                                            const token = localStorage.getItem('token');
-                                            const res = await fetch('/api/communications', {
-                                                method: 'POST',
-                                                headers: {
-                                                    'Authorization': `Bearer ${token}`,
-                                                    'Content-Type': 'application/json'
-                                                },
-                                                body: JSON.stringify(payload)
-                                            });
-
-                                            if (res.ok) {
-                                                alert('Communication logged successfully!');
-                                                form.reset();
-                                                // Reload data
-                                                window.location.reload();
-                                            } else {
-                                                const err = await res.json();
-                                                alert(err.error || 'Failed to log communication');
-                                            }
-                                        } catch (err) {
-                                            alert('Network error');
-                                        }
-                                    }}>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                            <div>
-                                                <label className="label">Channel</label>
-                                                <select name="channel" className="input" required>
-                                                    <option>Email</option>
-                                                    <option>Phone</option>
-                                                    <option>WhatsApp</option>
-                                                    <option>Meeting</option>
-                                                    <option>Other</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="label">Outcome</label>
-                                                <select name="outcome" className="input">
-                                                    <option value="">Select outcome...</option>
-                                                    <option>Interested</option>
-                                                    <option>Follow-up required</option>
-                                                    <option>Renewal confirmed</option>
-                                                    <option>Complaint</option>
-                                                    <option>Refused</option>
-                                                </select>
-                                            </div>
-                                            <div className="md:col-span-2">
-                                                <label className="label">Subject</label>
-                                                <input type="text" name="subject" className="input" required placeholder="e.g. Renewal Discussion" />
-                                            </div>
-                                            <div className="md:col-span-2">
-                                                <label className="label">Notes</label>
-                                                <textarea name="notes" className="input h-24" required placeholder="Details of the conversation..."></textarea>
-                                            </div>
-                                            <div>
-                                                <label className="label">Next Follow-up Date</label>
-                                                <input type="date" name="nextFollowUpDate" className="input" />
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-end">
-                                            <button type="submit" className="btn btn-primary px-8">Log Communication</button>
-                                        </div>
-                                    </form>
+                                    <CommunicationForm
+                                        customerId={customer.id}
+                                        previousFollowUpId={activeFollowUpId}
+                                        onSuccess={() => {
+                                            setActiveFollowUpId(null);
+                                            window.location.reload();
+                                        }}
+                                    />
                                 </div>
 
                                 {/* Communication History */}
@@ -445,7 +566,15 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                                                     <div className="flex items-center space-x-3">
                                                         <span className="text-2xl">{log.channel === 'Email' ? '📧' : log.channel === 'Phone' ? '📞' : '💬'}</span>
                                                         <div>
-                                                            <h4 className="font-bold text-secondary-900">{log.subject}</h4>
+                                                            <div className="flex items-center space-x-2">
+                                                                <h4 className="font-bold text-secondary-900">{log.subject}</h4>
+                                                                <button
+                                                                    onClick={() => setEditingLog(log)}
+                                                                    className="text-[10px] text-primary-600 font-bold hover:underline"
+                                                                >
+                                                                    (Edit)
+                                                                </button>
+                                                            </div>
                                                             <p className="text-xs text-secondary-500">
                                                                 <FormattedDate date={log.date} /> • Logged by {log.user?.customerProfile?.name || 'Staff member'}
                                                             </p>
@@ -464,6 +593,17 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                                         </svg>
                                                         Follow-up scheduled for: <FormattedDate date={log.nextFollowUpDate} />
+                                                        {!log.isFollowUpCompleted && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setActiveFollowUpId(log.id);
+                                                                    formRef.current?.scrollIntoView({ behavior: 'smooth' });
+                                                                }}
+                                                                className="ml-4 text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded hover:bg-primary-200 transition-colors"
+                                                            >
+                                                                Complete Follow-up
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -507,7 +647,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                                                                     <FormattedDate date={invoice.dueDate} />
                                                                 </td>
                                                                 <td className="font-bold text-secondary-900">
-                                                                    ${invoice.total.toLocaleString()}
+                                                                    {invoice.currency === 'INR' ? '₹' : '$'}{invoice.total.toLocaleString()}
                                                                 </td>
                                                                 <td>
                                                                     <span className={`badge ${invoice.status === 'PAID' ? 'badge-success' : 'badge-warning'}`}>

@@ -1,7 +1,15 @@
-import { PrismaClient, Priority, TaskStatus } from '@prisma/client';
+import 'dotenv/config';
+import { PrismaClient } from '@prisma/client';
+import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import bcrypt from 'bcryptjs';
+import path from 'path';
 
-const prisma = new PrismaClient();
+const dbPath = path.join(process.cwd(), 'prisma', 'dev.db');
+const adapter = new PrismaBetterSqlite3({ url: dbPath });
+
+const prisma = new PrismaClient({
+    adapter,
+});
 
 async function main() {
     console.log('🌱 Starting seed...');
@@ -25,76 +33,100 @@ async function main() {
     // Hash password for all users
     const hashedPassword = await bcrypt.hash('password123', 12);
 
+    // 34. Create Company
+    console.log('🏢 Creating company...');
+    const company = await (prisma as any).company.create({
+        data: {
+            name: 'STM Journals Inc',
+            domain: 'stm.com',
+            address: '123 Publishing Way, New York, NY',
+            phone: '+1-212-555-0199',
+            email: 'contact@stm.com',
+            website: 'https://stm.com',
+        }
+    });
+
     // 1. Create Super Admin
     console.log('👤 Creating users...');
-    const superAdmin = await prisma.user.create({
+    const superAdmin = await (prisma.user as any).create({
         data: {
             email: 'admin@stm.com',
             password: hashedPassword,
             role: 'SUPER_ADMIN',
             emailVerified: true,
+            companyId: company.id,
             customerProfile: {
                 create: {
                     customerType: 'INDIVIDUAL',
                     name: 'Admin User',
                     primaryEmail: 'admin@stm.com',
                     primaryPhone: '+1-555-0001',
+                    companyId: company.id,
                     country: 'United States',
-                },
-            },
-        },
-    });
-
-    // 2. Create Sales Executives
-    const salesExec1 = await prisma.user.create({
-        data: {
-            email: 'john.sales@stm.com',
-            password: hashedPassword,
-            role: 'SALES_EXECUTIVE',
-            emailVerified: true,
-            customerProfile: {
-                create: {
-                    customerType: 'INDIVIDUAL',
-                    name: 'John Sales',
-                    primaryEmail: 'john.sales@stm.com',
-                    primaryPhone: '+1-555-0002',
-                    country: 'United States',
-                },
-            },
-        },
-    });
-
-    const salesExec2 = await prisma.user.create({
-        data: {
-            email: 'sarah.sales@stm.com',
-            password: hashedPassword,
-            role: 'SALES_EXECUTIVE',
-            emailVerified: true,
-            customerProfile: {
-                create: {
-                    customerType: 'INDIVIDUAL',
-                    name: 'Sarah Johnson',
-                    primaryEmail: 'sarah.sales@stm.com',
-                    primaryPhone: '+1-555-0003',
-                    country: 'United States',
-                },
+                } as any,
             },
         },
     });
 
     // 3. Create Manager
-    const manager = await prisma.user.create({
+    const manager = await (prisma.user as any).create({
         data: {
             email: 'manager@stm.com',
             password: hashedPassword,
             role: 'MANAGER',
             emailVerified: true,
+            companyId: company.id,
+            managerId: superAdmin.id, // Reports to Super Admin
             customerProfile: {
                 create: {
                     customerType: 'INDIVIDUAL',
                     name: 'Michael Manager',
                     primaryEmail: 'manager@stm.com',
                     primaryPhone: '+1-555-0004',
+                    companyId: company.id,
+                    country: 'United States',
+                },
+            },
+        },
+    });
+
+    // 2. Create Sales Executives (Now managed by Michael Manager)
+    const salesExec1 = await (prisma.user as any).create({
+        data: {
+            email: 'john.sales@stm.com',
+            password: hashedPassword,
+            role: 'SALES_EXECUTIVE',
+            emailVerified: true,
+            companyId: company.id,
+            managerId: manager.id,
+            customerProfile: {
+                create: {
+                    customerType: 'INDIVIDUAL',
+                    name: 'John Sales',
+                    primaryEmail: 'john.sales@stm.com',
+                    primaryPhone: '+1-555-0002',
+                    companyId: company.id,
+                    country: 'United States',
+                },
+            },
+        },
+    });
+
+    const salesExec2 = await (prisma.user as any).create({
+        data: {
+            email: 'sarah.sales@stm.com',
+            password: hashedPassword,
+            role: 'SALES_EXECUTIVE',
+            emailVerified: true,
+            companyId: company.id,
+            managerId: manager.id,
+            customerProfile: {
+                create: {
+                    customerType: 'INDIVIDUAL',
+                    name: 'Sarah Johnson',
+                    primaryEmail: 'sarah.sales@stm.com',
+                    primaryPhone: '+1-555-0003',
+                    companyId: company.id,
                     country: 'United States',
                 },
             },
@@ -102,18 +134,21 @@ async function main() {
     });
 
     // 4. Create Finance Admin
-    const financeAdmin = await prisma.user.create({
+    const financeAdmin = await (prisma.user as any).create({
         data: {
             email: 'finance@stm.com',
             password: hashedPassword,
             role: 'FINANCE_ADMIN',
             emailVerified: true,
+            companyId: company.id,
+            managerId: superAdmin.id,
             customerProfile: {
                 create: {
                     customerType: 'INDIVIDUAL',
                     name: 'Finance Admin',
                     primaryEmail: 'finance@stm.com',
                     primaryPhone: '+1-555-0005',
+                    companyId: company.id,
                     country: 'United States',
                 },
             },
@@ -121,12 +156,13 @@ async function main() {
     });
 
     // 5. Create Agency
-    const agency = await prisma.user.create({
+    const agency = await (prisma.user as any).create({
         data: {
             email: 'agency@partner.com',
             password: hashedPassword,
             role: 'AGENCY',
             emailVerified: true,
+            companyId: company.id,
             customerProfile: {
                 create: {
                     customerType: 'AGENCY',
@@ -134,6 +170,7 @@ async function main() {
                     organizationName: 'Global Subscription Partners LLC',
                     primaryEmail: 'agency@partner.com',
                     primaryPhone: '+1-555-0006',
+                    companyId: company.id,
                     country: 'United States',
                     agencyDetails: {
                         create: {
@@ -148,8 +185,63 @@ async function main() {
         },
     });
 
-    // 6. Create Institution Customers
-    const institutions: any[] = [];
+    // 6. Create Departments
+    console.log('🏢 Creating departments...');
+    const salesDept = await (prisma as any).department.create({
+        data: {
+            companyId: company.id,
+            name: 'Sales Department',
+            code: 'SALES',
+            description: 'Customer acquisition and subscription sales',
+            headUserId: manager.id,
+            isActive: true
+        }
+    });
+
+    const financeDept = await (prisma as any).department.create({
+        data: {
+            companyId: company.id,
+            name: 'Finance Department',
+            code: 'FIN',
+            description: 'Financial operations, invoicing, and payments',
+            headUserId: financeAdmin.id,
+            isActive: true
+        }
+    });
+
+    const supportDept = await (prisma as any).department.create({
+        data: {
+            companyId: company.id,
+            name: 'Customer Support',
+            code: 'SUPPORT',
+            description: 'Customer service and technical support',
+            isActive: true
+        }
+    });
+
+    // Assign users to departments
+    await (prisma.user as any).update({
+        where: { id: salesExec1.id },
+        data: { departmentId: salesDept.id }
+    });
+
+    await (prisma.user as any).update({
+        where: { id: salesExec2.id },
+        data: { departmentId: salesDept.id }
+    });
+
+    await (prisma.user as any).update({
+        where: { id: manager.id },
+        data: { departmentId: salesDept.id }
+    });
+
+    await (prisma.user as any).update({
+        where: { id: financeAdmin.id },
+        data: { departmentId: financeDept.id }
+    });
+
+    // 7. Create Institution Customers
+    const institutions = [];
     const institutionData = [
         {
             email: 'library@mit.edu',
@@ -194,12 +286,13 @@ async function main() {
     ];
 
     for (const inst of institutionData) {
-        const institution = await prisma.user.create({
+        const institution = await (prisma.user as any).create({
             data: {
                 email: inst.email,
                 password: hashedPassword,
                 role: 'CUSTOMER',
                 emailVerified: true,
+                companyId: company.id,
                 customerProfile: {
                     create: {
                         customerType: 'INSTITUTION',
@@ -207,6 +300,7 @@ async function main() {
                         organizationName: inst.orgName,
                         primaryEmail: inst.email,
                         primaryPhone: `+1-555-${1000 + institutions.length}`,
+                        companyId: company.id,
                         country: inst.country,
                         city: inst.city,
                         billingAddress: `${inst.orgName}, ${inst.city}`,
@@ -225,7 +319,7 @@ async function main() {
     }
 
     // 7. Create Individual Customers
-    const individuals: any[] = [];
+    const individuals = [];
     const individualData = [
         { email: 'researcher1@email.com', name: 'Dr. Alice Brown', country: 'United States' },
         { email: 'researcher2@email.com', name: 'Dr. Robert Miller', country: 'Canada' },
@@ -233,18 +327,20 @@ async function main() {
     ];
 
     for (const ind of individualData) {
-        const individual = await prisma.user.create({
+        const individual = await (prisma.user as any).create({
             data: {
                 email: ind.email,
                 password: hashedPassword,
                 role: 'CUSTOMER',
                 emailVerified: true,
+                companyId: company.id,
                 customerProfile: {
                     create: {
                         customerType: 'INDIVIDUAL',
                         name: ind.name,
                         primaryEmail: ind.email,
                         primaryPhone: `+1-555-${2000 + individuals.length}`,
+                        companyId: company.id,
                         country: ind.country,
                     },
                 },
@@ -255,7 +351,7 @@ async function main() {
 
     // 8. Create Journals
     console.log('📰 Creating journals...');
-    const journals: any[] = [];
+    const journals = [];
     const journalData = [
         {
             name: 'Nature Journal',
@@ -313,7 +409,8 @@ async function main() {
                 frequency: j.frequency,
                 formatAvailable: j.formats.join(','),
                 subjectCategory: j.subjects.join(','),
-                basePrice: j.price,
+                priceINR: j.price,
+                priceUSD: j.price / 84, // Approx conversion
                 isActive: true,
             },
         });
@@ -326,7 +423,8 @@ async function main() {
                 planType: 'Annual',
                 format: 'Online',
                 duration: 12,
-                price: j.price,
+                priceINR: j.price,
+                priceUSD: j.price / 84,
                 startDateRule: 'immediate',
                 gracePeriod: 30,
             },
@@ -338,7 +436,8 @@ async function main() {
                 planType: 'Annual',
                 format: 'Print',
                 duration: 12,
-                price: j.price * 1.2,
+                priceINR: j.price * 1.2,
+                priceUSD: (j.price * 1.2) / 84,
                 startDateRule: 'immediate',
                 gracePeriod: 30,
             },
@@ -350,7 +449,8 @@ async function main() {
                 planType: 'Annual',
                 format: 'Hybrid',
                 duration: 12,
-                price: j.price * 1.3,
+                priceINR: j.price * 1.3,
+                priceUSD: (j.price * 1.3) / 84,
                 startDateRule: 'immediate',
                 gracePeriod: 30,
             },
@@ -383,27 +483,28 @@ async function main() {
         const endDate = new Date(startDate);
         endDate.setFullYear(endDate.getFullYear() + 1);
 
-        const subscription = await prisma.subscription.create({
+        const subscription = await (prisma.subscription as any).create({
             data: {
                 customerProfileId: profile.id,
+                companyId: company.id,
                 salesChannel: isAgency ? 'AGENCY' : 'DIRECT',
-                agencyId: isAgency ? agencyProfile?.agencyDetails?.id : null,
+                agencyId: isAgency ? (agencyProfile as any)?.agencyDetails?.id : null,
                 salesExecutiveId: !isAgency ? (i % 2 === 0 ? salesExec1.id : salesExec2.id) : null,
                 startDate,
                 endDate,
                 autoRenew: true,
                 status: 'ACTIVE',
-                subtotal: plan.price,
+                subtotal: plan.priceINR,
                 discount: 0,
-                tax: plan.price * 0.1,
-                total: plan.price * 1.1,
+                tax: plan.priceINR * 0.1,
+                total: plan.priceINR * 1.1,
                 items: {
                     create: {
                         journalId: plan.journalId,
                         planId: plan.id,
                         quantity: 1,
                         seats: Math.floor(Math.random() * 100) + 50,
-                        price: plan.price,
+                        price: plan.priceINR,
                     },
                 },
             },
@@ -415,9 +516,9 @@ async function main() {
             data: {
                 subscriptionId: subscription.id,
                 invoiceNumber: `INV-2025-${String(i + 1).padStart(4, '0')}`,
-                amount: plan.price,
-                tax: plan.price * 0.1,
-                total: plan.price * 1.1,
+                amount: plan.priceINR,
+                tax: plan.priceINR * 0.1,
+                total: plan.priceINR * 1.1,
                 status: isPaid ? 'PAID' : 'UNPAID',
                 dueDate: new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000),
                 paidDate: isPaid ? new Date(startDate.getTime() + 15 * 24 * 60 * 60 * 1000) : null,
@@ -460,17 +561,17 @@ async function main() {
                 endDate,
                 autoRenew: false,
                 status: 'ACTIVE',
-                subtotal: plan.price,
-                discount: plan.price * 0.05,
-                tax: plan.price * 0.95 * 0.1,
-                total: plan.price * 0.95 * 1.1,
+                subtotal: plan.priceINR,
+                discount: plan.priceINR * 0.05,
+                tax: plan.priceINR * 0.95 * 0.1,
+                total: plan.priceINR * 0.95 * 1.1,
                 items: {
                     create: {
                         journalId: plan.journalId,
                         planId: plan.id,
                         quantity: 1,
                         seats: 100,
-                        price: plan.price,
+                        price: plan.priceINR,
                     },
                 },
             },
@@ -482,9 +583,10 @@ async function main() {
     for (let i = 0; i < institutionProfiles.length; i++) {
         const profile = institutionProfiles[i];
 
-        await prisma.communicationLog.create({
+        await (prisma.communicationLog as any).create({
             data: {
                 customerProfileId: profile.id,
+                companyId: company.id,
                 userId: salesExec1.id,
                 channel: 'Email',
                 subject: 'Initial subscription setup',
@@ -495,11 +597,14 @@ async function main() {
         });
 
         if (i < 3) {
-            await prisma.communicationLog.create({
+            await (prisma.communicationLog as any).create({
                 data: {
                     customerProfileId: profile.id,
+                    companyId: company.id,
                     userId: salesExec1.id,
+                    type: 'CALL',
                     channel: 'Phone',
+                    duration: 345, // seconds
                     subject: 'Renewal reminder call',
                     notes: 'Called to discuss upcoming renewal. Customer confirmed intent to renew.',
                     outcome: 'renewal-confirmed',
@@ -507,40 +612,58 @@ async function main() {
                     nextFollowUpDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
                 },
             });
+
+            await (prisma.communicationLog as any).create({
+                data: {
+                    customerProfileId: profile.id,
+                    companyId: company.id,
+                    userId: financeAdmin.id,
+                    type: 'INVOICE_SENT',
+                    channel: 'Email',
+                    subject: 'Invoice #INV-2025-001',
+                    notes: 'Sent invoice for annual subscription renewal.',
+                    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+                },
+            });
         }
     }
 
     // 11. Create Tasks
     console.log('✅ Creating tasks...');
-    const taskData: any[] = [
+    const taskData = [
         {
             title: 'Follow up with MIT Library renewal',
             description: 'Renewal due in 15 days. Need to confirm subscription continuation.',
             dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            priority: Priority.HIGH,
-            status: TaskStatus.PENDING,
+            priority: 'HIGH',
+            status: 'PENDING',
             userId: salesExec1.id,
         },
         {
             title: 'Send pricing proposal to Oxford University',
             description: 'They requested a quote for the full journal bundle.',
             dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-            priority: Priority.MEDIUM,
-            status: TaskStatus.IN_PROGRESS,
+            priority: 'MEDIUM',
+            status: 'IN_PROGRESS',
             userId: salesExec2.id,
         },
         {
             title: 'Process refund for cancelled subscription',
             description: 'Customer cancelled mid-term. Calculate prorated refund.',
             dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000),
-            priority: Priority.URGENT,
-            status: TaskStatus.PENDING,
+            priority: 'URGENT',
+            status: 'PENDING',
             userId: financeAdmin.id,
         },
     ];
 
     for (const task of taskData) {
-        await prisma.task.create({ data: task });
+        await (prisma.task as any).create({
+            data: {
+                ...task,
+                companyId: company.id
+            }
+        });
     }
 
     // 12. Create Audit Logs

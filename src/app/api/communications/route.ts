@@ -1,23 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
     try {
         // 1. Verify Authentication
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-
-        if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded || !['SUPER_ADMIN', 'SALES_EXECUTIVE', 'MANAGER', 'FINANCE_ADMIN'].includes(decoded.role)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         // 2. Parse Body
         const body = await req.json();
-        const { customerProfileId, channel, subject, notes, outcome, nextFollowUpDate } = body;
+        const {
+            customerProfileId,
+            channel,
+            type, // EMAIL, CALL, COMMENT, etc.
+            subject,
+            notes,
+            outcome,
+            nextFollowUpDate,
+            duration,
+            recordingUrl,
+            referenceId,
+            previousFollowUpId
+        } = body;
 
         if (!customerProfileId || !channel || !subject || !notes) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -29,13 +36,25 @@ export async function POST(req: NextRequest) {
                 customerProfileId,
                 userId: decoded.id,
                 channel,
+                type: type || 'COMMENT',
                 subject,
                 notes,
                 outcome,
+                duration,
+                recordingUrl,
+                referenceId,
                 nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
                 date: new Date()
             }
         });
+
+        // 4. If this is a response to a follow-up, mark the previous one as completed
+        if (previousFollowUpId) {
+            await prisma.communicationLog.update({
+                where: { id: previousFollowUpId },
+                data: { isFollowUpCompleted: true }
+            });
+        }
 
         // 4. Log Audit
         await prisma.auditLog.create({
@@ -58,11 +77,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
     try {
-        const authHeader = req.headers.get('authorization');
-        const token = authHeader?.split(' ')[1];
-        if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const decoded = verifyToken(token);
+        const decoded = await getAuthenticatedUser();
         if (!decoded || !['SUPER_ADMIN', 'MANAGER', 'SALES_EXECUTIVE'].includes(decoded.role)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
@@ -72,8 +87,38 @@ export async function GET(req: NextRequest) {
         const limit = parseInt(searchParams.get('limit') || '20');
         const skip = (page - 1) * limit;
 
+        // Build where clause based on hierarchy and multi-tenancy
+        const userCompanyId = (decoded as any).companyId;
+        let where: any = {};
+
+        // Restrict to company if not SUPER_ADMIN
+        if (decoded.role !== 'SUPER_ADMIN' && userCompanyId) {
+            where.companyId = userCompanyId;
+        }
+
+        if (decoded.role === 'SALES_EXECUTIVE') {
+            // Executives see logs they created OR logs for customers assigned to them
+            where.OR = [
+                { userId: decoded.id },
+                { customerProfile: { assignedToUserId: decoded.id } }
+            ];
+        } else if (decoded.role === 'MANAGER') {
+            // Managers see everything in their team/company
+            where.OR = [
+                { userId: decoded.id },
+                { user: { managerId: decoded.id } }, // Logs by subordinates
+                {
+                    customerProfile: {
+                        assignedTo: { managerId: decoded.id }
+                    }
+                }
+            ];
+        }
+        // SUPER_ADMIN sees everything (empty where)
+
         const [logs, total] = await Promise.all([
             prisma.communicationLog.findMany({
+                where,
                 skip,
                 take: limit,
                 orderBy: { date: 'desc' },
@@ -82,11 +127,11 @@ export async function GET(req: NextRequest) {
                         select: { name: true, organizationName: true, customerType: true }
                     },
                     user: {
-                        select: { role: true }
+                        select: { id: true, email: true, role: true }
                     }
                 }
             }),
-            prisma.communicationLog.count()
+            prisma.communicationLog.count({ where })
         ]);
 
         return NextResponse.json({

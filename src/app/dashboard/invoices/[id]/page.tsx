@@ -45,8 +45,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         }
     };
 
+
     const handleSimulatePayment = async () => {
-        if (!confirm('Simulate successful payment for this invoice?')) return;
+        const method = prompt('Enter payment method (card, bank-transfer, razorpay):', 'razorpay');
+        if (!method) return;
 
         setIsPaying(true);
         try {
@@ -59,7 +61,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 },
                 body: JSON.stringify({
                     amount: invoice.total,
-                    paymentMethod: 'card',
+                    paymentMethod: method,
                     transactionId: `SIM-${Date.now()}`,
                     notes: 'Simulated payment via dashboard'
                 })
@@ -77,6 +79,10 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             setIsPaying(false);
         }
     };
+
+    // ... (rest of the file until rendering prices)
+    // I will use replace_file_content on specific chunks to update '$' to {currencySymbol}
+
 
     if (loading) {
         return (
@@ -100,6 +106,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         );
     }
 
+    const currencySymbol = invoice.currency === 'INR' ? '₹' : '$';
+
     return (
         <DashboardLayout userRole={userRole}>
             <div className="max-w-5xl mx-auto space-y-6 pb-12">
@@ -112,10 +120,33 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                         <span>Back</span>
                     </button>
                     <div className="flex space-x-3">
+                        {['SUPER_ADMIN', 'FINANCE_ADMIN'].includes(userRole) && (
+                            <button
+                                className="btn btn-secondary border-danger-200 text-danger-600 hover:bg-danger-50"
+                                onClick={async () => {
+                                    if (!confirm('Are you sure you want to CANCEL this invoice? This cannot be undone.')) return;
+                                    try {
+                                        const token = localStorage.getItem('token');
+                                        const res = await fetch(`/api/invoices/${id}/metadata`, {
+                                            method: 'PATCH',
+                                            headers: {
+                                                'Authorization': `Bearer ${token}`,
+                                                'Content-Type': 'application/json'
+                                            },
+                                            body: JSON.stringify({ status: 'CANCELLED' })
+                                        });
+                                        if (res.ok) fetchInvoice();
+                                        else alert('Failed to cancel');
+                                    } catch (e) { alert('Error'); }
+                                }}
+                            >
+                                Cancel Invoice
+                            </button>
+                        )}
                         <button className="btn btn-secondary" onClick={() => window.print()}>
                             Print PDF
                         </button>
-                        {invoice.status !== 'PAID' && (
+                        {invoice.status !== 'PAID' && invoice.status !== 'CANCELLED' && (
                             <button
                                 className="btn btn-primary"
                                 onClick={handleSimulatePayment}
@@ -193,8 +224,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                                                 <div className="text-sm text-secondary-500">{item.plan.planType} - {item.plan.format}</div>
                                             </td>
                                             <td className="py-6 text-center font-medium">{item.quantity}</td>
-                                            <td className="py-6 text-right font-medium">${item.price.toLocaleString()}</td>
-                                            <td className="py-6 text-right font-bold text-secondary-900">${(item.price * item.quantity).toLocaleString()}</td>
+                                            <td className="py-6 text-right font-medium">{currencySymbol}{item.price.toLocaleString()}</td>
+                                            <td className="py-6 text-right font-bold text-secondary-900">{currencySymbol}{(item.price * item.quantity).toLocaleString()}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -206,15 +237,15 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                             <div className="w-full sm:w-80 space-y-4">
                                 <div className="flex justify-between text-secondary-600">
                                     <span>Subtotal</span>
-                                    <span className="font-bold">${invoice.amount.toLocaleString()}</span>
+                                    <span className="font-bold">{currencySymbol}{invoice.amount.toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between text-secondary-600">
                                     <span>Tax (0%)</span>
-                                    <span className="font-bold">+$0.00</span>
+                                    <span className="font-bold">+{currencySymbol}0.00</span>
                                 </div>
                                 <div className="flex justify-between items-center pt-4 border-t-2 border-secondary-900">
                                     <span className="text-xl font-bold text-secondary-900 uppercase">Total Due</span>
-                                    <span className="text-3xl font-extrabold text-primary-600">${invoice.total.toLocaleString()}</span>
+                                    <span className="text-3xl font-extrabold text-primary-600">{currencySymbol}{invoice.total.toLocaleString()}</span>
                                 </div>
                             </div>
                         </div>
@@ -248,7 +279,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="font-bold text-green-600">+ ${p.amount.toLocaleString()}</p>
+                                        <p className="font-bold text-green-600">+ {currencySymbol}{p.amount.toLocaleString()}</p>
                                         <p className="text-[10px] text-secondary-400 font-mono italic">{p.transactionId}</p>
                                     </div>
                                 </div>
