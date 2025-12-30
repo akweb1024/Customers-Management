@@ -2,6 +2,9 @@
     "name": "stm-customer",
     "version": "0.1.0",
     "private": true,
+    "engines": {
+        "node": ">=22.12.0"
+    },
     "scripts": {
         "dev": "next dev",
         "build": "prisma generate && next build",
@@ -16,7 +19,6 @@
         "seed": "tsx prisma/seed.ts"
     },
     "dependencies": {
-        "@prisma/adapter-better-sqlite3": "^7.2.0",
         "@prisma/client": "^7.2.0",
         "@types/bcryptjs": "^2.4.6",
         "@types/jsonwebtoken": "^9.0.10",
@@ -26,7 +28,6 @@
         "@types/web-push": "^3.6.4",
         "autoprefixer": "^10.4.20",
         "bcryptjs": "^3.0.3",
-        "better-sqlite3": "^12.5.0",
         "eslint": "^9.18.0",
         "eslint-config-next": "^15.1.4",
         "jsonwebtoken": "^9.0.3",
@@ -40,7 +41,6 @@
         "web-push": "^3.6.7"
     },
     "devDependencies": {
-        "@types/better-sqlite3": "^7.6.13",
         "dotenv": "^17.2.3",
         "tsx": "^4.21.0"
     }
