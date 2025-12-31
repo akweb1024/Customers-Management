@@ -16,24 +16,41 @@ export default function CommissionPage() {
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
+        const token = localStorage.getItem('token');
+
         if (userData) {
             const user = JSON.parse(userData);
             setUserRole(user.role);
         }
-        // Mock data for demo
-        setTimeout(() => {
-            setStats({
-                totalEarned: 12450.00,
-                pendingPayout: 1850.50,
-                rate: 12.5
-            });
-            setPayouts([
-                { id: '1', date: '2025-11-15', amount: 3200, status: 'PAID', method: 'Bank Transfer' },
-                { id: '2', date: '2025-10-15', amount: 2800, status: 'PAID', method: 'Bank Transfer' },
-                { id: '3', date: '2025-09-15', amount: 3100, status: 'PAID', method: 'Bank Transfer' },
-            ]);
-            setLoading(false);
-        }, 1000);
+
+        const fetchStats = async () => {
+            try {
+                const res = await fetch('/api/commissions/stats', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setStats({
+                        totalEarned: data.totalEarned,
+                        pendingPayout: data.pendingPayout,
+                        rate: data.rate
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to fetch commission stats', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchStats();
+
+        // Keep mock payouts for now as we don't have a Payout model yet
+        setPayouts([
+            { id: '1', date: '2025-11-15', amount: 3200, status: 'PAID', method: 'Bank Transfer' },
+            { id: '2', date: '2025-10-15', amount: 2800, status: 'PAID', method: 'Bank Transfer' },
+            { id: '3', date: '2025-09-15', amount: 3100, status: 'PAID', method: 'Bank Transfer' },
+        ]);
     }, []);
 
     return (

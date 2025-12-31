@@ -66,6 +66,19 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         fetchCustomer();
     }, [id, router]);
 
+    // Handle incoming follow-up from query params
+    useEffect(() => {
+        const searchParams = new URLSearchParams(window.location.search);
+        const fId = searchParams.get('followUpId');
+        if (fId) {
+            setActiveFollowUpId(fId);
+            setActiveTab('communication');
+            setTimeout(() => {
+                formRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, 500);
+        }
+    }, [customer]); // Run when customer data is loaded and tabs are ready
+
     if (loading) {
         return (
             <DashboardLayout userRole={userRole}>

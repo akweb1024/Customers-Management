@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { registerPush } from '@/lib/push-register';
@@ -16,15 +16,9 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
     const pathname = usePathname();
     const router = useRouter();
 
-    useEffect(() => {
-        fetchNotifications();
-        registerPush();
-        // Polling for notifications every 30 seconds
-        const interval = setInterval(fetchNotifications, 30000);
-        return () => clearInterval(interval);
-    }, []);
+    const fetchNotifications = useCallback(async () => {
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
-    const fetchNotifications = async () => {
         try {
             const token = localStorage.getItem('token');
             if (!token) return;
@@ -38,7 +32,32 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
         } catch (err) {
             console.error('Fetch notifications error:', err);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchNotifications();
+        registerPush();
+
+        // Polling for notifications every 60 seconds, only if visible
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                fetchNotifications();
+            }
+        }, 60000);
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchNotifications();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [fetchNotifications]);
 
     const markAllAsRead = async () => {
         try {
@@ -47,7 +66,7 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                 method: 'PATCH',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+            setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
         } catch (err) {
             console.error('Mark read error:', err);
         }
@@ -61,7 +80,7 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                     method: 'PATCH',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                setNotifications(notifications.map(n =>
+                setNotifications(prev => prev.map(n =>
                     n.id === notification.id ? { ...n, isRead: true } : n
                 ));
             }
@@ -80,10 +99,11 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
     };
 
     // Navigation items based on role
-    const getNavigationItems = () => {
+    const navigationItems = useMemo(() => {
         const commonItems = [
             { name: 'Dashboard', href: '/dashboard', icon: '📊' },
             { name: 'Chat', href: '/dashboard/chat', icon: '💬' },
+            { name: 'Appearance', href: '/dashboard/settings/theme', icon: '🎨' },
             { name: 'Profile', href: '/dashboard/profile', icon: '👤' },
         ];
 
@@ -160,9 +180,7 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
         };
 
         return [...commonItems, ...(roleSpecificItems[userRole] || roleSpecificItems.CUSTOMER)];
-    };
-
-    const navigationItems = getNavigationItems();
+    }, [userRole]);
 
     return (
         <div className="min-h-screen bg-secondary-50">
@@ -326,7 +344,7 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
             >
                 <nav className="p-4 space-y-2 h-full flex flex-col">
                     <div className="flex-1">
-                        {navigationItems.map((item) => {
+                        {navigationItems.map((item: any) => {
                             const isActive = pathname === item.href;
                             return (
                                 <Link

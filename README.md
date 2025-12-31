@@ -4,38 +4,21 @@ A comprehensive web application for managing journal subscriptions, customers, s
 
 ## 🚀 Features
 
-### Phase 1 (MVP) - Currently Implemented
+### Phase 1, 2 & 3 - Currently Implemented
+- ✅ **User Authentication & Authorization** (RBAC, JWT)
+- ✅ **Customer Management** (Individuals/Institutions/Agencies)
+- ✅ **Subscription Lifecycle Architecture** (Request -> Approval -> Billing -> Activation)
+- ✅ **Automated Financials** (Invoice generation, payment tracking, partial payments)
+- ✅ **Email Engine** (Professional HTML templates for requests, approvals, and receipts)
+- ✅ **Advanced Analytics** (Revenue trends, journal performance, channel split)
+- ✅ **Agency Management** (Real-time commission tracking at 10% rate)
+- ✅ **Data Portability** (Secure CSV exports for Subscriptions and Invoices)
 
-- ✅ **User Authentication & Authorization**
-  - Registration with customer type selection (Individual/Institution/Agency)
-  - JWT-based authentication
-  - Role-Based Access Control (RBAC)
-  
-- ✅ **Customer Management**
-  - Self-registration and profile management
-  - Support for Individuals, Institutions, and Agencies
-  - Customer profile updates
-  
-- ✅ **Database Schema**
-  - Complete Prisma schema covering all entities
-  - User, CustomerProfile, Journal, Subscription, Invoice, Payment
-  - Communication logs, Tasks, and Audit trails
-  
-- ✅ **Dashboard**
-  - Role-based navigation
-  - Statistics overview
-  - Recent activity feed
-  - Upcoming renewals tracking
-
-### Upcoming Features (Phase 2 & 3)
-
-- 📋 Subscription lifecycle management
-- 📰 Journal catalog management
-- 💳 Invoice and payment processing
-- 📊 Advanced analytics and reporting
-- 📧 Email templates and automated reminders
-- 🤝 Agency commission management
-- 🔔 Renewal reminder system
+### Phase 4 - Completed
+- ✅ **Bulk Communications** (Targeted email broadcasts to customer segments)
+- ✅ **Advanced Search** (Filtering by Geography, ISSN, and Journal Metadata)
+- ✅ **Automated Renewal Reminders** (30/60/90 day triggers + Manual UI triggers)
+- ✅ **Task Management Workflow** (Integrated follow-up response and resolution)
 
 ## 🛠️ Tech Stack
 

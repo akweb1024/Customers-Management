@@ -84,6 +84,43 @@ export async function POST(
             return { payment, invoice: updatedInvoice };
         });
 
+        // 4. Notify Customer
+        const customer = await prisma.customerProfile.findUnique({
+            where: { id: result.invoice.subscription.customerProfileId },
+            select: { userId: true }
+        });
+
+        if (customer?.userId) {
+            const { createNotification } = await import('@/lib/notifications');
+            await createNotification({
+                userId: customer.userId,
+                title: result.invoice.status === 'PAID' ? 'Payment Received' : 'Partial Payment Recorded',
+                message: `A payment of ${result.invoice.currency} ${amount.toLocaleString()} has been recorded for invoice ${result.invoice.invoiceNumber}.`,
+                type: result.invoice.status === 'PAID' ? 'SUCCESS' : 'INFO',
+                link: `/dashboard/invoices/${id}`
+            });
+
+            // Send Email Notification
+            const profile = await prisma.customerProfile.findUnique({
+                where: { id: result.invoice.subscription.customerProfileId },
+                select: { name: true, primaryEmail: true }
+            });
+
+            if (profile) {
+                const { sendEmail, EmailTemplates } = await import('@/lib/email');
+                const template = EmailTemplates.paymentReceived(
+                    profile.name,
+                    `${result.invoice.currency} ${amount.toLocaleString()}`,
+                    result.invoice.invoiceNumber
+                );
+
+                await sendEmail({
+                    to: profile.primaryEmail,
+                    ...template
+                });
+            }
+        }
+
         return NextResponse.json({
             success: true,
             message: 'Payment recorded successfully',

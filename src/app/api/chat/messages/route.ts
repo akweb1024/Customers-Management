@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
         if (!roomId) return NextResponse.json({ error: 'Room ID is required' }, { status: 400 });
 
         // Verify participant
-        const isParticipant = await (prisma as any).chatParticipant.findUnique({
+        const isParticipant = await prisma.chatParticipant.findUnique({
             where: {
                 roomId_userId: {
                     roomId,
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
         if (!isParticipant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-        const messages = await (prisma as any).chatMessage.findMany({
+        const messages = await prisma.chatMessage.findMany({
             where: { roomId },
             include: {
                 sender: {
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Verify participant
-        const isParticipant = await (prisma as any).chatParticipant.findUnique({
+        const isParticipant = await prisma.chatParticipant.findUnique({
             where: {
                 roomId_userId: {
                     roomId,
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
 
         if (!isParticipant) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-        const message = await (prisma as any).chatMessage.create({
+        const message = await prisma.chatMessage.create({
             data: {
                 roomId,
                 content,
@@ -80,13 +80,13 @@ export async function POST(req: NextRequest) {
         });
 
         // Update room's updatedAt for sorting
-        await (prisma as any).chatRoom.update({
+        await prisma.chatRoom.update({
             where: { id: roomId },
             data: { updatedAt: new Date() }
         });
 
         // Notify other participants
-        const otherParticipants = await (prisma as any).chatParticipant.findMany({
+        const otherParticipants = await prisma.chatParticipant.findMany({
             where: { roomId, userId: { not: decoded.id } }
         });
 

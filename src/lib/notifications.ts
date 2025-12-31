@@ -28,7 +28,7 @@ export async function createNotification({
     link?: string | null;
 }) {
     try {
-        const notification = await (prisma as any).notification.create({
+        const notification = await prisma.notification.create({
             data: {
                 userId,
                 title,
@@ -49,7 +49,7 @@ export async function createNotification({
 
 async function sendPushNotification(userId: string, title: string, body: string, link: string | null) {
     try {
-        const subscriptions = await (prisma as any).pushSubscription.findMany({
+        const subscriptions = await prisma.pushSubscription.findMany({
             where: { userId }
         });
 
@@ -83,7 +83,7 @@ async function sendPushNotification(userId: string, title: string, body: string,
             if (result.status === 'rejected') {
                 const sub = subscriptions[i];
                 if ((result.reason as any).statusCode === 410 || (result.reason as any).statusCode === 404) {
-                    await (prisma as any).pushSubscription.delete({
+                    await prisma.pushSubscription.delete({
                         where: { id: sub.id }
                     });
                 }

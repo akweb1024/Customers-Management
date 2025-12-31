@@ -35,9 +35,12 @@ export async function GET(req: NextRequest) {
 
         if (search) {
             where.OR = [
-                { customerProfile: { name: { contains: search } } },
-                { customerProfile: { organizationName: { contains: search } } },
-                { id: { contains: search } }
+                { customerProfile: { name: { contains: search, mode: 'insensitive' } } },
+                { customerProfile: { organizationName: { contains: search, mode: 'insensitive' } } },
+                { id: { contains: search, mode: 'insensitive' } },
+                { items: { some: { journal: { name: { contains: search, mode: 'insensitive' } } } } },
+                { items: { some: { journal: { issnPrint: { contains: search, mode: 'insensitive' } } } } },
+                { items: { some: { journal: { issnOnline: { contains: search, mode: 'insensitive' } } } } }
             ];
         }
 

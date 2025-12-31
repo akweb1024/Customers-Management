@@ -50,9 +50,16 @@ export default function CommunicationsPage() {
     return (
         <DashboardLayout userRole={userRole}>
             <div className="space-y-6">
-                <div>
-                    <h1 className="text-3xl font-bold text-secondary-900">Communication History</h1>
-                    <p className="text-secondary-600 mt-1">Global audit trail of all customer interactions</p>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-secondary-900">Communication History</h1>
+                        <p className="text-secondary-600 mt-1">Global audit trail of all customer interactions</p>
+                    </div>
+                    {['SUPER_ADMIN', 'MANAGER'].includes(userRole) && (
+                        <Link href="/dashboard/communications/bulk" className="btn btn-primary flex items-center gap-2">
+                            <span className="text-xl">🚀</span> Send Bulk Message
+                        </Link>
+                    )}
                 </div>
 
                 <div className="card-premium overflow-hidden">
@@ -110,13 +117,33 @@ export default function CommunicationsPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        {log.nextFollowUpDate && (
+                                        {log.nextFollowUpDate && !log.isFollowUpCompleted && (
                                             <div className="text-right">
-                                                <div className="inline-flex items-center px-3 py-1 bg-warning-50 text-warning-700 rounded-full text-xs font-bold border border-warning-100">
+                                                <div className="inline-flex flex-col items-end gap-2">
+                                                    <div className="inline-flex items-center px-3 py-1 bg-warning-50 text-warning-700 rounded-full text-xs font-bold border border-warning-100">
+                                                        <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                        </svg>
+                                                        Follow-up: <span className="ml-1 italic"><FormattedDate date={log.nextFollowUpDate} /></span>
+                                                    </div>
+                                                    {['SUPER_ADMIN', 'MANAGER', 'SALES_EXECUTIVE'].includes(userRole) && (
+                                                        <Link
+                                                            href={`/dashboard/customers/${log.customerProfileId}?followUpId=${log.id}#communication-form`}
+                                                            className="text-[10px] bg-primary-600 text-white px-3 py-1 rounded-full font-bold hover:bg-primary-700 transition-colors shadow-sm"
+                                                        >
+                                                            Respond to Task
+                                                        </Link>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {log.nextFollowUpDate && log.isFollowUpCompleted && (
+                                            <div className="text-right">
+                                                <div className="inline-flex items-center px-3 py-1 bg-success-50 text-success-700 rounded-full text-xs font-bold border border-success-100 opacity-60">
                                                     <svg className="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                                     </svg>
-                                                    Follow-up: <span className="ml-1 italic"><FormattedDate date={log.nextFollowUpDate} /></span>
+                                                    Follow-up Completed
                                                 </div>
                                             </div>
                                         )}

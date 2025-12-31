@@ -101,6 +101,38 @@ export async function POST(request: NextRequest) {
             }
         });
 
+        // 8. Notify Staff (Admins and Managers)
+        const staffToNotify = await prisma.user.findMany({
+            where: {
+                role: { in: ['SUPER_ADMIN', 'MANAGER'] }
+            },
+            select: { id: true }
+        });
+
+        const { createNotification } = await import('@/lib/notifications');
+        for (const staff of staffToNotify) {
+            await createNotification({
+                userId: staff.id,
+                title: 'New Subscription Request',
+                message: `${customerProfile.name} has requested a subscription for ${items.length} journals (${currency} ${total.toLocaleString()}).`,
+                type: 'INFO',
+                link: `/dashboard/subscriptions/${subscription.id}`
+            });
+        }
+
+        // 9. Send Email Confirmation to Customer
+        const { sendEmail, EmailTemplates } = await import('@/lib/email');
+        const template = EmailTemplates.subscriptionRequest(
+            customerProfile.name,
+            items.length,
+            `${currency} ${total.toLocaleString()}`
+        );
+
+        await sendEmail({
+            to: customerProfile.primaryEmail,
+            ...template
+        });
+
         return NextResponse.json({
             success: true,
             subscriptionId: subscription.id,

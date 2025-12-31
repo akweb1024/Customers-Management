@@ -174,12 +174,42 @@ export default function JournalsPage() {
                             ))}
                         </div>
 
-                        <div className="mt-8 pt-8 border-t border-secondary-100 flex justify-end">
+                        <div className="mt-8 pt-8 border-t border-secondary-100 flex justify-between items-center">
+                            <div className="flex gap-3">
+                                {userRole === 'SUPER_ADMIN' && (
+                                    <>
+                                        <Link
+                                            href={`/dashboard/journals/${selectedJournal.id}/edit`}
+                                            className="btn btn-secondary border-primary-200 text-primary-600 hover:bg-primary-50 px-6 py-2"
+                                        >
+                                            Edit Journal
+                                        </Link>
+                                        <button
+                                            onClick={async () => {
+                                                if (confirm('Are you sure you want to delete this journal? This will hide it from the catalog.')) {
+                                                    const token = localStorage.getItem('token');
+                                                    const res = await fetch(`/api/journals/${selectedJournal.id}`, {
+                                                        method: 'DELETE',
+                                                        headers: { 'Authorization': `Bearer ${token}` }
+                                                    });
+                                                    if (res.ok) {
+                                                        setSelectedJournal(null);
+                                                        fetchJournals();
+                                                    }
+                                                }
+                                            }}
+                                            className="btn btn-secondary border-danger-200 text-danger-600 hover:bg-danger-50 px-6 py-2"
+                                        >
+                                            Delete
+                                        </button>
+                                    </>
+                                )}
+                            </div>
                             <button
                                 onClick={() => setSelectedJournal(null)}
                                 className="btn btn-primary px-10"
                             >
-                                Got it
+                                Close
                             </button>
                         </div>
                     </div>

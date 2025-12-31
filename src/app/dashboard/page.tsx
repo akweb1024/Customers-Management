@@ -166,16 +166,43 @@ export default function DashboardPage() {
                             </div>
                             <div className="space-y-4">
                                 {upcomingRenewals?.map((renewal: any) => (
-                                    <div key={renewal.id} className="p-4 bg-secondary-50 rounded-lg hover:bg-secondary-100 transition-colors">
+                                    <div key={renewal.id} className="p-4 bg-secondary-50 rounded-lg hover:bg-secondary-100 transition-colors group">
                                         <div className="flex items-start justify-between mb-2">
                                             <div>
                                                 <h4 className="font-semibold text-secondary-900">{renewal.customer}</h4>
                                                 <p className="text-sm text-secondary-600">{renewal.journal}</p>
                                             </div>
-                                            <span className={`badge ${renewal.status === 'contacted' ? 'badge-success' : 'badge-warning'
-                                                }`}>
-                                                {renewal.status}
-                                            </span>
+                                            <div className="flex flex-col items-end gap-2">
+                                                <span className={`badge ${renewal.status === 'auto-renew' ? 'badge-success' : 'badge-warning'}`}>
+                                                    {renewal.status}
+                                                </span>
+                                                {renewal.status === 'pending' && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            const token = localStorage.getItem('token');
+                                                            const res = await fetch(`/api/communications`, {
+                                                                method: 'POST',
+                                                                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({
+                                                                    customerProfileId: renewal.customerProfileId,
+                                                                    channel: 'EMAIL',
+                                                                    type: 'EMAIL',
+                                                                    subject: `Renewal Reminder: ${renewal.journal}`,
+                                                                    notes: 'Manual renewal reminder sent from dashboard.',
+                                                                    outcome: 'sent'
+                                                                })
+                                                            });
+                                                            if (res.ok) alert('Reminder notification logged and sent.');
+                                                        }}
+                                                        className="text-[10px] font-bold text-primary-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                                                    >
+                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                                        </svg>
+                                                        Send Reminder
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="flex items-center justify-between text-sm">
                                             <span className="text-secondary-600">Due: {renewal.dueDate}</span>

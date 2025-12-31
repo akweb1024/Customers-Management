@@ -11,10 +11,7 @@ export async function PATCH(
         const decoded = await getAuthenticatedUser();
         if (!decoded) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        const notificationModel = (prisma as any).notification || (prisma as any).Notification;
-        if (!notificationModel) throw new Error('Notification model not found');
-
-        const notification = await notificationModel.update({
+        const notification = await prisma.notification.update({
             where: { id, userId: decoded.id },
             data: { isRead: true }
         });
@@ -35,10 +32,7 @@ export async function DELETE(
         const decoded = await getAuthenticatedUser();
         if (!decoded) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-        const notificationModel = (prisma as any).notification || (prisma as any).Notification;
-        if (!notificationModel) throw new Error('Notification model not found');
-
-        await notificationModel.delete({
+        await prisma.notification.delete({
             where: { id, userId: decoded.id }
         });
 

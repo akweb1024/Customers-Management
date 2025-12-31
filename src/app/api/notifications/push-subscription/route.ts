@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Save or update subscription
-        await (prisma as any).pushSubscription.upsert({
+        await prisma.pushSubscription.upsert({
             where: { endpoint: subscription.endpoint },
             update: {
                 userId: decoded.id,

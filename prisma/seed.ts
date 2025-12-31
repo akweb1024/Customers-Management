@@ -1,10 +1,7 @@
-import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../src/lib/prisma';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient({
-    accelerateUrl: process.env.DATABASE_URL,
-});
+// Removed local PrismaClient initialization to use the centralized one
 
 async function main() {
     console.log('🌱 Starting seed...');

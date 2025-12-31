@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
         const limit = parseInt(searchParams.get('limit') || '10');
         const search = searchParams.get('search') || '';
         const type = searchParams.get('type') as CustomerType | null;
+        const state = searchParams.get('state');
+        const country = searchParams.get('country');
 
         const skip = (page - 1) * limit;
 
@@ -37,13 +39,20 @@ export async function GET(req: NextRequest) {
 
         if (search) {
             where.OR = [
-                { name: { contains: search } },
-                { organizationName: { contains: search } },
-                { primaryEmail: { contains: search } }
+                { name: { contains: search, mode: 'insensitive' } },
+                { organizationName: { contains: search, mode: 'insensitive' } },
+                { primaryEmail: { contains: search, mode: 'insensitive' } },
+                { city: { contains: search, mode: 'insensitive' } }
             ];
         }
         if (type) {
             where.customerType = type;
+        }
+        if (state) {
+            where.state = { contains: state, mode: 'insensitive' };
+        }
+        if (country) {
+            where.country = { contains: country, mode: 'insensitive' };
         }
 
         // Executive Restriction: Only see assigned customers

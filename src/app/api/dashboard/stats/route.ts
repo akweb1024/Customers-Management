@@ -57,11 +57,6 @@ export async function GET(req: NextRequest) {
             };
         }
 
-        // 2. Fetch Stats
-        const activeSubscriptionsCount = await prisma.subscription.count({
-            where: { ...whereClause, status: 'ACTIVE' },
-        });
-
         // Revenue calculation needs to match the hierarchy
         let revenueWhere: any = {};
 
@@ -74,22 +69,9 @@ export async function GET(req: NextRequest) {
             revenueWhere = { invoice: { subscription: { salesExecutiveId: whereClause.salesExecutiveId } } };
         }
 
-        const totalRevenue = await prisma.payment.aggregate({
-            where: revenueWhere,
-            _sum: { amount: true },
-        });
-
         // Renewals due in the next 30 days
         const thirtyDaysFromNow = new Date();
         thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-
-        const renewalsCount = await prisma.subscription.count({
-            where: {
-                ...whereClause,
-                endDate: { lte: thirtyDaysFromNow, gte: new Date() },
-                status: 'ACTIVE',
-            },
-        });
 
         // Customer Count logic
         let customerWhere: any = {};
@@ -99,14 +81,34 @@ export async function GET(req: NextRequest) {
             customerWhere = { subscriptions: { some: { salesExecutiveId: whereClause.salesExecutiveId } } };
         }
 
+        // 2. Fetch Stats sequentially to avoid overloading the local dev proxy
+        const activeSubscriptionsCount = await prisma.subscription.count({
+            where: { ...whereClause, status: 'ACTIVE' },
+        });
+
+        const totalRevenue = await prisma.payment.aggregate({
+            where: revenueWhere,
+            _sum: { amount: true },
+        });
+
+        const renewalsCount = await prisma.subscription.count({
+            where: {
+                ...whereClause,
+                endDate: { lte: thirtyDaysFromNow, gte: new Date() },
+                status: 'ACTIVE',
+            },
+        });
+
         const totalCustomers = role === 'CUSTOMER' ? 1 : await prisma.customerProfile.count({
             where: customerWhere
         });
 
-        // Pending Requests (for Staff)
         const pendingRequestsCount = await prisma.subscription.count({
             where: { ...whereClause, status: 'REQUESTED' },
         });
+
+        const recentActivities = await fetchRecentActivities(whereClause, customerProfileId);
+        const upcomingRenewals = await fetchUpcomingRenewals(whereClause, customerProfileId);
 
         return NextResponse.json({
             stats: [
@@ -120,7 +122,7 @@ export async function GET(req: NextRequest) {
                 },
                 {
                     name: role === 'CUSTOMER' ? 'Total Spent' : 'Total Revenue',
-                    value: `$${(totalRevenue._sum.amount || 0).toLocaleString()}`,
+                    value: `$${((totalRevenue as any)._sum.amount || 0).toLocaleString()}`,
                     change: 'All time',
                     icon: '💰',
                     color: 'bg-success-500',
@@ -153,8 +155,8 @@ export async function GET(req: NextRequest) {
                     }
                 ] : []),
             ],
-            recentActivities: await fetchRecentActivities(whereClause, customerProfileId),
-            upcomingRenewals: await fetchUpcomingRenewals(whereClause, customerProfileId),
+            recentActivities,
+            upcomingRenewals,
         });
     } catch (error) {
         console.error('Dashboard Stats Error:', error);
@@ -193,6 +195,7 @@ async function fetchRecentActivities(whereClause: any, customerProfileId?: strin
             type: 'subscription',
             message: `Subscription ${s.status === 'ACTIVE' ? 'activated' : 'updated'} for ${s.customerProfile.name}`,
             time: formatTimeAgo(s.createdAt),
+            date: s.createdAt,
             icon: '✅',
         })),
         ...payments.map((p: any) => ({
@@ -200,11 +203,12 @@ async function fetchRecentActivities(whereClause: any, customerProfileId?: strin
             type: 'payment',
             message: `Payment received: $${p.amount.toLocaleString()}`,
             time: formatTimeAgo(p.createdAt),
+            date: p.createdAt,
             icon: '💳',
         }))
     ];
 
-    return activities.sort((a, b) => 0); // Simplified sort
+    return activities.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 5);
 }
 
 async function fetchUpcomingRenewals(whereClause: any, customerProfileId?: string) {
@@ -227,6 +231,7 @@ async function fetchUpcomingRenewals(whereClause: any, customerProfileId?: strin
 
     return renewals.map((r: any) => ({
         id: r.id,
+        customerProfileId: r.customerProfile.id,
         customer: r.customerProfile.name,
         journal: r.items[0]?.journal?.name || 'Journal Subscription',
         dueDate: r.endDate.toISOString().split('T')[0],

@@ -6,6 +6,8 @@ export const metadata: Metadata = {
     description: 'Centralized platform for managing journal subscriptions, customers, and sales channels',
 };
 
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
+
 export default function RootLayout({
     children,
 }: {
@@ -14,7 +16,9 @@ export default function RootLayout({
     return (
         <html lang="en" suppressHydrationWarning>
             <body className="antialiased" suppressHydrationWarning>
-                {children}
+                <ThemeProvider>
+                    {children}
+                </ThemeProvider>
             </body>
         </html>
     );

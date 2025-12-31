@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth';
 
+
+
 export async function GET(req: NextRequest) {
     try {
         const decoded = await getAuthenticatedUser();
