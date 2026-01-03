@@ -1,0 +1,26 @@
+nohup: ignoring input
+
+> stm-customer@0.1.0 start
+> next start
+
+   ▲ Next.js 15.5.9
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.1.36:3000
+
+ ✓ Starting...
+ ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+ ✓ Ready in 271ms
+📅 Attendance GET - Date Filter: {
+  month: 1,
+  year: 2026,
+  gte: 2025-12-31T18:30:00.000Z,
+  lte: 2026-01-30T18:30:00.000Z
+}
+👤 Employee Profile Found: true 71e1a6ac-d805-4630-bb77-d88386af7f53
+🔍 Attendance WHERE clause: {
+  date: { gte: 2025-12-31T18:30:00.000Z, lte: 2026-01-30T18:30:00.000Z },
+  companyId: 'fa6127d8-3c55-4655-a86d-638256ed3eba',
+  employeeId: '71e1a6ac-d805-4630-bb77-d88386af7f53'
+}
+✅ Attendance Records Found: 0
+Killed
