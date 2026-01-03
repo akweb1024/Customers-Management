@@ -3,6 +3,30 @@ import Link from 'next/link';
 export default function Home() {
     return (
         <div className="min-h-screen">
+            {/* Header / Navbar */}
+            <nav className="fixed top-0 left-0 right-0 z-50 bg-white/10 backdrop-blur-lg border-b border-white/20">
+                <div className="container mx-auto px-6 h-20 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg">S</div>
+                        <span className="text-2xl font-black text-white tracking-tight">STM<span className="text-white/70">Connect</span></span>
+                    </div>
+
+                    <div className="hidden md:flex items-center gap-8 text-white/90 font-medium">
+                        <Link href="/features" className="hover:text-white transition-colors">Platform</Link>
+                        <Link href="/dashboard/journals" className="hover:text-white transition-colors">Journals</Link>
+                        <Link href="/careers" className="hover:text-white transition-colors">Careers</Link>
+                        <Link href="/dashboard/courses" className="hover:text-white transition-colors">Academy</Link>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <Link href="/login" className="text-white font-bold hover:text-white/80 transition-colors">Login</Link>
+                        <Link href="/dashboard" className="bg-white text-primary-700 px-6 py-2 rounded-xl font-black shadow-premium hover:scale-105 transition-all">
+                            Go to Dashboard
+                        </Link>
+                    </div>
+                </div>
+            </nav>
+
             {/* Hero Section */}
             <section className="gradient-primary bg-primary-700 min-h-screen flex items-center relative overflow-hidden">
                 {/* Animated Background Shapes */}

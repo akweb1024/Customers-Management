@@ -39,11 +39,17 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { title, description, requirements, location, salaryRange, type, examQuestions } = body;
+        const { title, description, requirements, location, salaryRange, type, examQuestions, companyId } = body;
+
+        const finalCompanyId = companyId || user.companyId;
+
+        if (!finalCompanyId) {
+            return NextResponse.json({ error: 'Company ID is required to create a job posting.' }, { status: 400 });
+        }
 
         const job = await prisma.jobPosting.create({
             data: {
-                companyId: user.companyId || '',
+                companyId: finalCompanyId,
                 title,
                 description,
                 requirements,

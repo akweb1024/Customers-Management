@@ -10,6 +10,8 @@ export default function CourseDetailPage() {
     const [course, setCourse] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [userRole, setUserRole] = useState<string>('');
+    const [showModuleModal, setShowModuleModal] = useState(false);
+    const [showLessonModal, setShowLessonModal] = useState<{ show: boolean, moduleId: string }>({ show: false, moduleId: '' });
 
     useEffect(() => {
         const user = localStorage.getItem('user');
@@ -55,6 +57,44 @@ export default function CourseDetailPage() {
         } catch (error) {
             console.error(error);
         }
+    };
+
+    const handleAddModule = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const data = Object.fromEntries(formData);
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`/api/courses/${id}/modules`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (res.ok) {
+                setShowModuleModal(false);
+                fetchCourse();
+            }
+        } catch (error) { console.error(error); }
+    };
+
+    const handleAddLesson = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const data = Object.fromEntries(formData);
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`/api/courses/modules/${showLessonModal.moduleId}/lessons`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (res.ok) {
+                setShowLessonModal({ show: false, moduleId: '' });
+                fetchCourse();
+            }
+        } catch (error) { console.error(error); }
     };
 
     if (loading) return <div className="p-8 text-center text-secondary-500">Loading course details...</div>;
@@ -106,7 +146,12 @@ export default function CourseDetailPage() {
                                     <div className="w-full bg-secondary-100 rounded-full h-2">
                                         <div className="bg-success-500 h-2 rounded-full" style={{ width: `${course.enrollments[0].progress}%` }}></div>
                                     </div>
-                                    <button className="btn btn-primary w-full mt-4">Continue Learning</button>
+                                    <Link
+                                        href={`/dashboard/courses/${id}/lessons/${course.modules?.[0]?.lessons?.[0]?.id || ''}`}
+                                        className="btn btn-primary w-full mt-4 flex items-center justify-center"
+                                    >
+                                        Continue Learning
+                                    </Link>
                                 </div>
                             ) : (
                                 <button className="btn btn-primary w-full md:w-1/2 py-3 text-lg font-bold">
@@ -124,7 +169,12 @@ export default function CourseDetailPage() {
                     <div className="flex justify-between items-center">
                         <h2 className="text-xl font-bold text-secondary-900">Course Curriculum</h2>
                         {isInstructor && (
-                            <button className="text-primary-600 text-sm font-bold hover:underline">+ Add Module</button>
+                            <button
+                                onClick={() => setShowModuleModal(true)}
+                                className="text-primary-600 text-sm font-bold hover:underline"
+                            >
+                                + Add Module
+                            </button>
                         )}
                     </div>
 
@@ -134,11 +184,22 @@ export default function CourseDetailPage() {
                                 <div key={module.id} className="bg-white rounded-2xl border border-secondary-200 overflow-hidden">
                                     <div className="p-4 bg-secondary-50 border-b border-secondary-100 flex justify-between items-center">
                                         <h3 className="font-bold text-secondary-800">{module.title}</h3>
-                                        {isInstructor && <button className="text-xs text-primary-600 font-bold hover:underline">+ Lesson</button>}
+                                        {isInstructor && (
+                                            <button
+                                                onClick={() => setShowLessonModal({ show: true, moduleId: module.id })}
+                                                className="text-xs text-primary-600 font-bold hover:underline"
+                                            >
+                                                + Lesson
+                                            </button>
+                                        )}
                                     </div>
                                     <div className="divide-y divide-secondary-50">
                                         {module.lessons.map((lesson: any) => (
-                                            <div key={lesson.id} className="p-4 flex justify-between items-center hover:bg-secondary-50 transition-colors cursor-pointer group">
+                                            <Link
+                                                key={lesson.id}
+                                                href={`/dashboard/courses/${id}/lessons/${lesson.id}`}
+                                                className="p-4 flex justify-between items-center hover:bg-secondary-50 transition-colors cursor-pointer group"
+                                            >
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${lesson.progress?.length > 0 && lesson.progress[0].isCompleted ? 'bg-success-100 text-success-600' : 'bg-secondary-200 text-secondary-500'}`}>
                                                         {lesson.progress?.length > 0 && lesson.progress[0].isCompleted ? '✓' : (lesson.type === 'VIDEO' ? '▶' : '📄')}
@@ -146,7 +207,7 @@ export default function CourseDetailPage() {
                                                     <span className="text-sm font-medium text-secondary-700 group-hover:text-primary-600">{lesson.title}</span>
                                                 </div>
                                                 <span className="text-xs text-secondary-400">{lesson.duration ? `${Math.floor(lesson.duration / 60)}m` : 'Text'}</span>
-                                            </div>
+                                            </Link>
                                         ))}
                                         {module.lessons.length === 0 && (
                                             <div className="p-4 text-center text-xs text-secondary-400 italic">No lessons in this module yet.</div>
@@ -182,6 +243,49 @@ export default function CourseDetailPage() {
                     )}
                 </div>
             </div>
+            {/* Modals */}
+            {showModuleModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-8 max-w-md w-full">
+                        <h3 className="text-xl font-bold mb-4">Add New Module</h3>
+                        <form onSubmit={handleAddModule} className="space-y-4">
+                            <div>
+                                <label className="label">Module Title</label>
+                                <input name="title" className="input" required placeholder="e.g. Introduction" />
+                            </div>
+                            <div className="flex gap-2">
+                                <button type="submit" className="btn btn-primary flex-1">Create</button>
+                                <button type="button" onClick={() => setShowModuleModal(false)} className="btn btn-secondary">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {showLessonModal.show && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-8 max-w-md w-full">
+                        <h3 className="text-xl font-bold mb-4">Add New Lesson</h3>
+                        <form onSubmit={handleAddLesson} className="space-y-4">
+                            <div>
+                                <label className="label">Lesson Title</label>
+                                <input name="title" className="input" required />
+                            </div>
+                            <div>
+                                <label className="label">Type</label>
+                                <select name="type" className="input">
+                                    <option value="VIDEO">Video</option>
+                                    <option value="TEXT">Text/Article</option>
+                                </select>
+                            </div>
+                            <div className="flex gap-2">
+                                <button type="submit" className="btn btn-primary flex-1">Add Lesson</button>
+                                <button type="button" onClick={() => setShowLessonModal({ show: false, moduleId: '' })} className="btn btn-secondary">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

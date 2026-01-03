@@ -115,6 +115,23 @@ export async function GET(req: NextRequest) {
             }
         });
 
+        // New Module Stats
+        const pendingDispatches = await (prisma as any).dispatchOrder.count({
+            where: { ...whereClause, status: 'PENDING' }
+        });
+
+        const activeCourses = await (prisma as any).course.count({
+            where: { ...whereClause, isPublished: true }
+        });
+
+        const articlesInReview = await (prisma as any).article.count({
+            where: { status: 'UNDER_REVIEW' }
+        });
+
+        const upcomingEvents = await (prisma as any).conference.count({
+            where: { ...whereClause, startDate: { gte: new Date() } }
+        });
+
         const recentActivities = await fetchRecentActivities(whereClause, customerProfileId);
         const upcomingRenewals = await fetchUpcomingRenewals(whereClause, customerProfileId);
 
@@ -128,48 +145,65 @@ export async function GET(req: NextRequest) {
                     color: 'bg-primary-500',
                     changePositive: true,
                 },
-                {
-                    name: 'Open Tickets',
-                    value: openTicketsCount.toString(),
-                    change: 'Requires attention',
-                    icon: '🎫',
-                    color: 'bg-danger-500',
-                    changePositive: openTicketsCount === 0,
-                },
-                {
-                    name: role === 'CUSTOMER' ? 'Total Spent' : 'Total Revenue',
-                    value: `$${((totalRevenue as any)._sum.amount || 0).toLocaleString()}`,
-                    change: 'All time',
-                    icon: '💰',
-                    color: 'bg-success-500',
-                    changePositive: true,
-                },
-                {
-                    name: 'Renewals Due',
-                    value: renewalsCount.toString(),
-                    change: 'Next 30 days',
-                    icon: '🔔',
-                    color: 'bg-warning-500',
-                    changePositive: false,
-                },
                 ...(role !== 'CUSTOMER' ? [
                     {
-                        name: 'Subscription Requests',
-                        value: pendingRequestsCount.toString(),
-                        change: 'Pending approval',
-                        icon: '📥',
-                        color: 'bg-blue-500',
-                        changePositive: pendingRequestsCount > 0,
+                        name: 'Logistics',
+                        value: pendingDispatches.toString(),
+                        change: 'Pending Dispatches',
+                        icon: '🚚',
+                        color: 'bg-indigo-600',
+                        changePositive: pendingDispatches === 0,
                     },
                     {
-                        name: role === 'AGENCY' ? 'My Managed Clients' : 'Total Customers',
-                        value: totalCustomers.toString(),
-                        change: 'Counted profiles',
-                        icon: '👥',
-                        color: 'bg-indigo-500',
+                        name: 'JMS Workflow',
+                        value: articlesInReview.toString(),
+                        change: 'In Review',
+                        icon: '✍️',
+                        color: 'bg-purple-600',
+                        changePositive: true,
+                    },
+                    {
+                        name: 'Academy',
+                        value: activeCourses.toString(),
+                        change: 'Active Courses',
+                        icon: '🎓',
+                        color: 'bg-success-600',
+                        changePositive: true,
+                    },
+                    {
+                        name: 'Events',
+                        value: upcomingEvents.toString(),
+                        change: 'Upcoming',
+                        icon: '🎤',
+                        color: 'bg-blue-600',
                         changePositive: true,
                     }
-                ] : []),
+                ] : [
+                    {
+                        name: 'Open Tickets',
+                        value: openTicketsCount.toString(),
+                        change: 'Requires attention',
+                        icon: '🎫',
+                        color: 'bg-danger-500',
+                        changePositive: openTicketsCount === 0,
+                    },
+                    {
+                        name: 'My Courses',
+                        value: activeCourses.toString(),
+                        change: 'Enrolled',
+                        icon: '🎓',
+                        color: 'bg-success-500',
+                        changePositive: true,
+                    },
+                    {
+                        name: 'Renewals Due',
+                        value: renewalsCount.toString(),
+                        change: 'Next 30 days',
+                        icon: '🔔',
+                        color: 'bg-warning-500',
+                        changePositive: false,
+                    }
+                ]),
             ],
             recentActivities,
             upcomingRenewals,

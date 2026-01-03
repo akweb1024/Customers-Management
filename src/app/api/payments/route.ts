@@ -1,53 +1,40 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth';
 
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
     try {
-        const decoded = await getAuthenticatedUser();
-        if (!decoded || !['SUPER_ADMIN', 'FINANCE_ADMIN', 'MANAGER'].includes(decoded.role)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const user = await getAuthenticatedUser();
+        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         const { searchParams } = new URL(req.url);
-        const page = parseInt(searchParams.get('page') || '1');
-        const limit = parseInt(searchParams.get('limit') || '20');
-        const skip = (page - 1) * limit;
+        const companyId = searchParams.get('companyId');
 
-        const [payments, total] = await Promise.all([
-            prisma.payment.findMany({
-                skip,
-                take: limit,
-                orderBy: { paymentDate: 'desc' },
-                include: {
-                    invoice: {
-                        include: {
-                            subscription: {
-                                include: {
-                                    customerProfile: {
-                                        select: { name: true, organizationName: true }
-                                    }
-                                }
-                            }
-                        }
-                    }
+        let filter: any = {};
+
+        // RBAC
+        if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE_ADMIN'].includes(user.role)) {
+            if (!user.companyId) return NextResponse.json([]);
+            filter.companyId = user.companyId;
+        } else if (companyId) {
+            filter.companyId = companyId;
+        }
+
+        const payments = await prisma.payment.findMany({
+            where: filter,
+            include: {
+                company: {
+                    select: { name: true }
+                },
+                invoice: {
+                    select: { invoiceNumber: true }
                 }
-            }),
-            prisma.payment.count()
-        ]);
-
-        return NextResponse.json({
-            data: payments,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit)
-            }
+            },
+            orderBy: { paymentDate: 'desc' },
         });
 
+        return NextResponse.json(payments);
     } catch (error: any) {
-        console.error('Fetch Payments Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

@@ -19,6 +19,7 @@ export default function RecruitmentDashboard() {
     const [companies, setCompanies] = useState<any[]>([]);
     const [jobs, setJobs] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'PIPELINE' | 'JOBS'>('PIPELINE');
+    const [pipelineView, setPipelineView] = useState<'TABLE' | 'KANBAN'>('KANBAN');
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -190,6 +191,23 @@ export default function RecruitmentDashboard() {
                     </button>
                 </div>
 
+                {activeTab === 'PIPELINE' && (
+                    <div className="flex justify-end gap-2 mb-4">
+                        <button
+                            onClick={() => setPipelineView('TABLE')}
+                            className={`p-2 rounded-lg ${pipelineView === 'TABLE' ? 'bg-secondary-200 text-secondary-900' : 'bg-secondary-50 text-secondary-500'}`}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                        </button>
+                        <button
+                            onClick={() => setPipelineView('KANBAN')}
+                            className={`p-2 rounded-lg ${pipelineView === 'KANBAN' ? 'bg-secondary-200 text-secondary-900' : 'bg-secondary-50 text-secondary-500'}`}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" /></svg>
+                        </button>
+                    </div>
+                )}
+
                 {activeTab === 'JOBS' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {jobs.map(job => (
@@ -237,56 +255,91 @@ export default function RecruitmentDashboard() {
                         ))}
                     </div>
                 ) : (
-                    <div className="card-premium overflow-hidden">
-                        <table className="table">
-                            <thead>
-                                <tr>
-                                    <th>Candidate</th>
-                                    <th>Role Applied</th>
-                                    <th>Exam Score</th>
-                                    <th>Status</th>
-                                    <th>Applied On</th>
-                                    <th className="text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {loading ? (
-                                    <tr><td colSpan={6} className="text-center py-10">Loading Candidates...</td></tr>
-                                ) : applications.map(app => (
-                                    <tr key={app.id} className="hover:bg-secondary-50 transition-colors">
-                                        <td>
-                                            <div className="font-bold text-secondary-900">{app.applicantName}</div>
-                                            <div className="text-xs text-secondary-400 font-bold">{app.applicantEmail}</div>
-                                        </td>
-                                        <td>
-                                            <p className="text-xs font-bold text-secondary-600">{app.jobPosting.title}</p>
-                                        </td>
-                                        <td>
-                                            {app.examAttempt ? (
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`font-black ${app.examAttempt.isPassed ? 'text-success-600' : 'text-danger-600'}`}>
-                                                        {app.examAttempt.score.toFixed(0)}%
-                                                    </span>
-                                                </div>
-                                            ) : '--'}
-                                        </td>
-                                        <td>
-                                            <span className={`badge ${statusBadges[app.status]}`}>{app.status.replace('_', ' ')}</span>
-                                        </td>
-                                        <td><FormattedDate date={app.createdAt} /></td>
-                                        <td className="text-right">
-                                            <button
-                                                onClick={() => setSelectedApp(app)}
-                                                className="btn btn-primary py-1.5 text-xs px-4 rounded-lg"
-                                            >
-                                                Process
-                                            </button>
-                                        </td>
+                    pipelineView === 'TABLE' ? (
+                        <div className="card-premium overflow-hidden">
+                            <table className="table">
+                                <thead>
+                                    <tr>
+                                        <th>Candidate</th>
+                                        <th>Role Applied</th>
+                                        <th>Exam Score</th>
+                                        <th>Status</th>
+                                        <th>Applied On</th>
+                                        <th className="text-right">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {loading ? (
+                                        <tr><td colSpan={6} className="text-center py-10">Loading Candidates...</td></tr>
+                                    ) : applications.map(app => (
+                                        <tr key={app.id} className="hover:bg-secondary-50 transition-colors">
+                                            <td>
+                                                <div className="font-bold text-secondary-900">{app.applicantName}</div>
+                                                <div className="text-xs text-secondary-400 font-bold">{app.applicantEmail}</div>
+                                            </td>
+                                            <td>
+                                                <p className="text-xs font-bold text-secondary-600">{app.jobPosting.title}</p>
+                                            </td>
+                                            <td>
+                                                {app.examAttempt ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`font-black ${app.examAttempt.isPassed ? 'text-success-600' : 'text-danger-600'}`}>
+                                                            {app.examAttempt.score.toFixed(0)}%
+                                                        </span>
+                                                    </div>
+                                                ) : '--'}
+                                            </td>
+                                            <td>
+                                                <span className={`badge ${statusBadges[app.status]}`}>{app.status.replace('_', ' ')}</span>
+                                            </td>
+                                            <td><FormattedDate date={app.createdAt} /></td>
+                                            <td className="text-right">
+                                                <button
+                                                    onClick={() => setSelectedApp(app)}
+                                                    className="btn btn-primary py-1.5 text-xs px-4 rounded-lg"
+                                                >
+                                                    Process
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="flex gap-6 overflow-x-auto pb-6 -mx-4 px-4 h-[700px]">
+                            {['APPLIED', 'EXAM_PENDING', 'EXAM_PASSED', 'INTERVIEW_L1', 'INTERVIEW_L2', 'INTERVIEW_L3', 'SELECTED', 'ONBOARDED'].map(status => (
+                                <div key={status} className="flex-shrink-0 w-80 flex flex-col gap-4">
+                                    <div className="flex items-center justify-between px-2">
+                                        <h3 className="text-xs font-black text-secondary-400 uppercase tracking-widest">{status.replace('_', ' ')}</h3>
+                                        <span className="bg-secondary-100 text-secondary-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                            {applications.filter(a => a.status === status).length}
+                                        </span>
+                                    </div>
+                                    <div className="flex-1 bg-secondary-50/50 rounded-3xl p-3 space-y-3 overflow-y-auto border-2 border-dashed border-secondary-100">
+                                        {applications.filter(a => a.status === status).map(app => (
+                                            <div
+                                                key={app.id}
+                                                onClick={() => setSelectedApp(app)}
+                                                className="bg-white p-4 rounded-2xl shadow-sm border border-secondary-100 cursor-pointer hover:border-primary-400 hover:shadow-md transition-all group"
+                                            >
+                                                <div className="text-xs font-bold text-primary-600 mb-1">{app.jobPosting.title}</div>
+                                                <div className="font-bold text-secondary-900 group-hover:text-primary-700">{app.applicantName}</div>
+                                                <div className="mt-3 flex justify-between items-center">
+                                                    <div className="text-[10px] text-secondary-400 font-medium">Applied <FormattedDate date={app.createdAt} /></div>
+                                                    {app.examAttempt && (
+                                                        <div className={`text-[10px] font-black px-2 py-0.5 rounded ${app.examAttempt.isPassed ? 'bg-success-100 text-success-600' : 'bg-danger-100 text-danger-600'}`}>
+                                                            {app.examAttempt.score.toFixed(0)}%
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )
                 )}
 
                 {showJobModal && (
@@ -311,6 +364,15 @@ export default function RecruitmentDashboard() {
                                     fetchJobs();
                                 }
                             }} className="space-y-4">
+                                <div>
+                                    <label className="label">Company</label>
+                                    <select name="companyId" className="input" required>
+                                        <option value="">Select Company</option>
+                                        {companies.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                                 <div>
                                     <label className="label">Job Title</label>
                                     <input name="title" className="input" required placeholder="Sales Manager" />

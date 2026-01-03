@@ -475,13 +475,19 @@ enum InvoiceStatus {
 
 model Payment {
   id              String        @id @default(uuid())
-  invoiceId       String
+  invoiceId       String?
   
   amount          Float
-  paymentMethod   String        // card/bank-transfer/check/other
+  paymentMethod   String?       // card/bank-transfer/check/other
   paymentDate     DateTime
   transactionId   String?
   notes           String?
+  
+  // Razorpay Specific
+  razorpayPaymentId String?     @unique
+  razorpayOrderId   String?
+  razorpaySignature String?
+  status            String?     // captured, refunded, failed, etc.
   
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -490,10 +496,19 @@ model Payment {
   company         Company?      @relation(fields: [companyId], references: [id])
 
   // Relations
-  invoice         Invoice       @relation(fields: [invoiceId], references: [id])
+  invoice         Invoice?       @relation(fields: [invoiceId], references: [id])
 
   @@index([invoiceId])
   @@index([companyId])
+}
+
+model RazorpaySync {
+  id              String   @id @default(uuid())
+  lastSyncAt      DateTime
+  status          String   // SUCCESS, FAILED
+  error           String?
+  syncedCount     Int      @default(0)
+  createdAt       DateTime @default(now())
 }
 
 // ============================================
