@@ -8,7 +8,17 @@ export default function SupplyChainDashboard() {
     const [metrics, setMetrics] = useState<any>(null);
     const [aiPlan, setAiPlan] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [generatingPlan, setGeneratingPlan] = useState(false);
+
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [newItem, setNewItem] = useState({
+        name: '',
+        sku: '',
+        currentStock: 0,
+        minThreshold: 10,
+        category: 'FINISHED_GOOD',
+        price: 0
+    });
 
     useEffect(() => {
         fetchData();
@@ -37,27 +47,28 @@ export default function SupplyChainDashboard() {
         }
     };
 
-    const handleCreateItem = async () => {
-        const name = prompt("Item Name:");
-        if (!name) return;
-        const sku = prompt("SKU:");
-        const stock = prompt("Current Stock:");
-
+    const handleCreateSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
         try {
             const token = localStorage.getItem('token');
-            await fetch('/api/supply-chain/inventory', {
+            const res = await fetch('/api/supply-chain/inventory', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name,
-                    sku,
-                    currentStock: stock || 0,
+                body: JSON.stringify(newItem)
+            });
+
+            if (res.ok) {
+                setIsModalOpen(false);
+                setNewItem({
+                    name: '',
+                    sku: '',
+                    currentStock: 0,
                     minThreshold: 10,
                     category: 'FINISHED_GOOD',
-                    price: 100
-                })
-            });
-            fetchData();
+                    price: 0
+                });
+                fetchData();
+            }
         } catch (e) {
             console.error(e);
         }
@@ -91,7 +102,7 @@ export default function SupplyChainDashboard() {
 
     return (
         <DashboardLayout>
-            <div className="max-w-7xl mx-auto space-y-8">
+            <div className="max-w-7xl mx-auto space-y-8 relative">
                 {/* Header */}
                 <div className="flex justify-between items-end">
                     <div>
@@ -100,7 +111,12 @@ export default function SupplyChainDashboard() {
                         </h1>
                         <p className="text-slate-500 font-medium mt-1">AI-driven inventory & production management.</p>
                     </div>
-                    <button onClick={handleCreateItem} className="btn bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg shadow-slate-200">+ Add SKU</button>
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="btn bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:shadow-lg shadow-slate-200"
+                    >
+                        + Add SKU
+                    </button>
                 </div>
 
                 {/* Metrics */}
@@ -187,6 +203,94 @@ export default function SupplyChainDashboard() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* ADD SKU MODAL */}
+                {isModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200">
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                <h3 className="text-xl font-black text-slate-900">Add New SKU</h3>
+                                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+                            </div>
+                            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Item Name</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-slate-900"
+                                        value={newItem.name}
+                                        onChange={e => setNewItem({ ...newItem, name: e.target.value })}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">SKU Code</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-sm"
+                                            value={newItem.sku}
+                                            onChange={e => setNewItem({ ...newItem, sku: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Price (₹)</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min="0"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                                            value={newItem.price}
+                                            onChange={e => setNewItem({ ...newItem, price: parseFloat(e.target.value) })}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Initial Stock</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min="0"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                                            value={newItem.currentStock}
+                                            onChange={e => setNewItem({ ...newItem, currentStock: parseInt(e.target.value) })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Min Threshold</label>
+                                        <input
+                                            type="number"
+                                            required
+                                            min="0"
+                                            className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                                            value={newItem.minThreshold}
+                                            onChange={e => setNewItem({ ...newItem, minThreshold: parseInt(e.target.value) })}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Category</label>
+                                    <select
+                                        className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-slate-700 bg-white"
+                                        value={newItem.category}
+                                        onChange={e => setNewItem({ ...newItem, category: e.target.value })}
+                                    >
+                                        <option value="FINISHED_GOOD">Finished Good</option>
+                                        <option value="RAW_MATERIAL">Raw Material</option>
+                                        <option value="PACKAGING">Packaging</option>
+                                    </select>
+                                </div>
+                                <div className="pt-4">
+                                    <button type="submit" className="w-full btn bg-slate-900 text-white hover:bg-slate-800 py-3 rounded-xl font-bold shadow-lg">
+                                        Create Inventory Item
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         </DashboardLayout>
     );
