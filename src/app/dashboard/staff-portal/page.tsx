@@ -591,7 +591,39 @@ export default function StaffPortalPage() {
                                         </div>
                                         <div className="text-right">
                                             <p className="text-lg font-black text-secondary-900">₹{slip.amountPaid.toLocaleString()}</p>
-                                            <button className="text-[10px] font-bold text-primary-600 uppercase tracking-widest hover:underline mt-1">Download PDF</button>
+                                            <button
+                                                onClick={async () => {
+                                                    const token = localStorage.getItem('token');
+                                                    const btn = document.getElementById(`download-btn-${slip.id}`);
+                                                    if (btn) btn.innerHTML = 'Downloading...';
+                                                    try {
+                                                        const res = await fetch(`/api/hr/salary-slips/${slip.id}/download`, {
+                                                            headers: { 'Authorization': `Bearer ${token}` }
+                                                        });
+                                                        if (res.ok) {
+                                                            const blob = await res.blob();
+                                                            const url = window.URL.createObjectURL(blob);
+                                                            const a = document.createElement('a');
+                                                            a.href = url;
+                                                            a.download = `Salary_Slip_${slip.month}_${slip.year}.pdf`;
+                                                            document.body.appendChild(a);
+                                                            a.click();
+                                                            window.URL.revokeObjectURL(url);
+                                                        } else {
+                                                            alert('Failed to download salary slip');
+                                                        }
+                                                    } catch (error) {
+                                                        console.error('Download error:', error);
+                                                        alert('An error occurred while downloading.');
+                                                    } finally {
+                                                        if (btn) btn.innerHTML = 'Download PDF';
+                                                    }
+                                                }}
+                                                id={`download-btn-${slip.id}`}
+                                                className="text-[10px] font-bold text-primary-600 uppercase tracking-widest hover:underline mt-1"
+                                            >
+                                                Download PDF
+                                            </button>
                                         </div>
                                     </div>
                                 ))}

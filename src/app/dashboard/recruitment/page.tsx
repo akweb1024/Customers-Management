@@ -16,6 +16,7 @@ export default function RecruitmentDashboard() {
     const [interviewers, setInterviewers] = useState<any[]>([]);
     const [isScheduling, setIsScheduling] = useState(false);
     const [isOnboarding, setIsOnboarding] = useState(false);
+    const [companies, setCompanies] = useState<any[]>([]);
     const [jobs, setJobs] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'PIPELINE' | 'JOBS'>('PIPELINE');
 
@@ -24,7 +25,20 @@ export default function RecruitmentDashboard() {
         if (userData) setUserRole(JSON.parse(userData).role);
         fetchApplications();
         fetchJobs();
+        fetchCompanies();
     }, []);
+
+    const fetchCompanies = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/companies', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) setCompanies(await res.json());
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
     const fetchJobs = async () => {
         try {
@@ -498,6 +512,19 @@ export default function RecruitmentDashboard() {
                                                         <input name="designation" className="input text-sm" defaultValue={selectedApp.jobPosting.title} required />
                                                     </div>
                                                 </div>
+
+                                                {/* Company Selection */}
+                                                <div>
+                                                    <label className="label text-[10px]">Assign Company</label>
+                                                    <select name="companyId" className="input text-sm" defaultValue={selectedApp.jobPosting.companyId}>
+                                                        <option value="">Default (Job Posting Company)</option>
+                                                        {companies.map(c => (
+                                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <p className="text-[10px] text-secondary-400 mt-1">Leave default to use {selectedApp.jobPosting.company?.name || 'recruiting company'}</p>
+                                                </div>
+
                                                 <div>
                                                     <label className="label text-[10px]">Offer Letter URL (Hosted)</label>
                                                     <input name="offerLetterUrl" className="input text-sm" placeholder="https://..." />

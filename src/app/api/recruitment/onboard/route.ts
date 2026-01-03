@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const { applicationId, role, designation, offerLetterUrl, contractUrl } = await req.json();
+        const { applicationId, role, designation, offerLetterUrl, contractUrl, companyId } = await req.json();
 
         const application = await prisma.jobApplication.findUnique({
             where: { id: applicationId },
@@ -21,6 +21,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Application not eligible for onboarding' }, { status: 400 });
         }
 
+        // Determine Company ID
+        const targetCompanyId = companyId || application.jobPosting.companyId;
+
         // Create actual User and EmployeeProfile
         const tempPassword = await bcrypt.hash('welcome123', 12);
 
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest) {
                     email: application.applicantEmail,
                     password: tempPassword,
                     role: role || 'SALES_EXECUTIVE',
-                    companyId: application.jobPosting.companyId,
+                    companyId: targetCompanyId,
                     isActive: true,
                     employeeProfile: {
                         create: {
@@ -60,3 +63,4 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+
