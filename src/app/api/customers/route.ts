@@ -32,8 +32,7 @@ export async function GET(req: NextRequest) {
         const where: any = {};
         const userCompanyId = (decoded as any).companyId;
 
-        // Multi-tenancy: Restrict to company if not SUPER_ADMIN
-        if (decoded.role !== 'SUPER_ADMIN' && userCompanyId) {
+        if (userCompanyId) {
             where.companyId = userCompanyId;
         }
 
@@ -55,9 +54,13 @@ export async function GET(req: NextRequest) {
             where.country = { contains: country, mode: 'insensitive' };
         }
 
-        // Executive Restriction: Only see assigned customers
+        // Executive Restriction: Only see assigned customers (primary or shared)
         if (decoded.role === 'SALES_EXECUTIVE') {
-            where.assignedToUserId = decoded.id;
+            where.OR = [
+                ...(where.OR || []),
+                { assignedToUserId: decoded.id },
+                { assignedExecutives: { some: { id: decoded.id } } }
+            ];
         }
 
         // 3. Fetch
@@ -143,7 +146,7 @@ export async function POST(req: NextRequest) {
         // Determine target company
         let targetCompanyId = companyId || (decoded as any).companyId;
 
-        const result = await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx: any) => {
             // Check if email already exists
             const existing = await tx.customerProfile.findFirst({
                 where: { primaryEmail }
@@ -170,7 +173,10 @@ export async function POST(req: NextRequest) {
             const customer = await tx.customerProfile.create({
                 data: {
                     userId: user.id,
-                    assignedToUserId: initialAssignedTo, // Use the determined ID
+                    assignedToUserId: initialAssignedTo, // Keep primary for compatibility
+                    assignedExecutives: initialAssignedTo ? {
+                        connect: { id: initialAssignedTo }
+                    } : undefined,
                     companyId: targetCompanyId,
                     name,
                     organizationName,

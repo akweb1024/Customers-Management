@@ -16,6 +16,7 @@ export default function StaffPortalPage() {
     const [activeTab, setActiveTab] = useState('overview');
     const [checkingIn, setCheckingIn] = useState(false);
     const [submittingReport, setSubmittingReport] = useState(false);
+    const [workFromMode, setWorkFromMode] = useState<'OFFICE' | 'REMOTE'>('OFFICE');
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -93,7 +94,7 @@ export default function StaffPortalPage() {
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action,
-                    workFrom: 'OFFICE',
+                    workFrom: workFromMode,
                     ...locationData
                 })
             });
@@ -159,14 +160,32 @@ export default function StaffPortalPage() {
                         </div>
                     </div>
 
-                    <div className="mt-6 md:mt-0 flex gap-4 relative z-10">
+                    <div className="mt-6 md:mt-0 flex flex-col items-end gap-3 relative z-10">
+                        {!todayAttendance?.checkIn && (
+                            <div className="flex gap-2 p-1 bg-secondary-100 rounded-xl mb-1">
+                                <button
+                                    onClick={() => setWorkFromMode('OFFICE')}
+                                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${workFromMode === 'OFFICE' ? 'bg-white text-primary-600 shadow-sm' : 'text-secondary-500 hover:text-secondary-700'}`}
+                                >
+                                    Office
+                                </button>
+                                <button
+                                    onClick={() => setWorkFromMode('REMOTE')}
+                                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${workFromMode === 'REMOTE' ? 'bg-white text-primary-600 shadow-sm' : 'text-secondary-500 hover:text-secondary-700'}`}
+                                >
+                                    Remote
+                                </button>
+                            </div>
+                        )}
+
                         {!todayAttendance?.checkIn ? (
                             <button
                                 onClick={() => handleAttendance('check-in')}
                                 disabled={checkingIn}
-                                className="btn btn-primary px-8 py-3 rounded-2xl shadow-lg hover:shadow-primary-200 transition-all flex items-center gap-2"
+                                className="btn btn-primary px-8 py-3 rounded-2xl shadow-lg hover:shadow-primary-200 transition-all flex items-center gap-2 group"
                             >
-                                {checkingIn ? '...' : 'Check In Now'} 🕒
+                                {checkingIn ? '...' : `Check In (${workFromMode})`}
+                                <span className="group-hover:translate-x-1 transition-transform">🕒</span>
                             </button>
                         ) : !todayAttendance?.checkOut ? (
                             <button
@@ -259,14 +278,23 @@ export default function StaffPortalPage() {
                                 </thead>
                                 <tbody>
                                     {attendance.length === 0 ? (
-                                        <tr><td colSpan={5} className="text-center py-10 text-secondary-500">No records found</td></tr>
+                                        <tr><td colSpan={6} className="text-center py-10 text-secondary-500">No records found</td></tr>
                                     ) : attendance.map(a => (
                                         <tr key={a.id}>
                                             <td className="font-bold"><FormattedDate date={a.date} /></td>
                                             <td className="text-success-600 font-medium">{a.checkIn ? new Date(a.checkIn).toLocaleTimeString() : '-'}</td>
                                             <td className="text-danger-600 font-medium">{a.checkOut ? new Date(a.checkOut).toLocaleTimeString() : '-'}</td>
                                             <td><span className="badge badge-secondary">{a.workFrom}</span></td>
-                                            <td><span className="badge badge-success">{a.status}</span></td>
+                                            <td>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="badge badge-success">{a.status}</span>
+                                                    {a.workFrom === 'OFFICE' && (
+                                                        <span title={a.isGeofenced ? "Verified Location" : "Outside Geofence"} className={`text-[10px] ${a.isGeofenced ? 'text-success-500' : 'text-danger-500'} font-black`}>
+                                                            {a.isGeofenced ? '📍 IN' : '⚠️ OUT'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>

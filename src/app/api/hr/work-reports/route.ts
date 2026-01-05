@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
         let where: any = {};
 
         // Company Isolation
-        if (user.role !== 'SUPER_ADMIN') {
+        if (user.companyId) {
             where.companyId = user.companyId;
         }
 

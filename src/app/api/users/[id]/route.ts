@@ -18,6 +18,7 @@ export async function GET(
             where: { id: id },
             include: {
                 customerProfile: true,
+                companies: true,
                 _count: {
                     select: {
                         assignedSubscriptions: true,
@@ -50,13 +51,19 @@ export async function PATCH(
         }
 
         const body = await req.json();
-        const { role, isActive, password } = body;
+        const { role, isActive, password, companyId, companyIds } = body;
 
         const updateData: any = {};
         if (role) updateData.role = role;
         if (isActive !== undefined) updateData.isActive = isActive;
         if (password) {
             updateData.password = await bcrypt.hash(password, 10);
+        }
+        if (companyId !== undefined) updateData.companyId = companyId;
+        if (companyIds !== undefined) {
+            updateData.companies = {
+                set: companyIds.map((id: string) => ({ id }))
+            };
         }
 
         const user = await prisma.user.update({

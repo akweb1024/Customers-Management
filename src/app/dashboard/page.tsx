@@ -106,7 +106,7 @@ export default function DashboardPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-secondary-900">
-                            Welcome back, {user?.customerProfile?.name || 'User'}!
+                            Welcome back, {user?.customerProfile?.name || user?.employeeProfile?.designation || user?.email?.split('@')[0] || 'User'}!
                         </h1>
                         <p className="text-secondary-600 mt-1">
                             Here's what's happening with your subscriptions today

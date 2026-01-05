@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { registerPush } from '@/lib/push-register';
+import GlobalSearch from './GlobalSearch';
 
 interface DashboardLayoutProps {
     children: React.ReactNode;
@@ -37,9 +38,31 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
         }
     }, []);
 
+    const [availableCompanies, setAvailableCompanies] = useState<any[]>([]);
+
+    const fetchUserContext = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            const res = await fetch('/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setUser(data.user);
+                setAvailableCompanies(data.availableCompanies || []);
+                localStorage.setItem('user', JSON.stringify(data.user));
+                localStorage.setItem('availableCompanies', JSON.stringify(data.availableCompanies));
+            }
+        } catch (err) {
+            console.error('Fetch user context error:', err);
+        }
+    }, []);
+
     useEffect(() => {
         setMounted(true);
         fetchNotifications();
+        fetchUserContext();
         registerPush();
 
         // Check if impersonating
@@ -47,6 +70,8 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
             setIsImpersonating(!!localStorage.getItem('adminToken'));
             const savedUser = localStorage.getItem('user');
             if (savedUser) setUser(JSON.parse(savedUser));
+            const savedCompanies = localStorage.getItem('availableCompanies');
+            if (savedCompanies) setAvailableCompanies(JSON.parse(savedCompanies));
         }
 
         // Polling for notifications every 60 seconds, only if visible
@@ -164,6 +189,7 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                 items: [
                     { name: 'Journals', href: '/dashboard/journals', icon: '📰', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'EDITOR', 'CUSTOMER', 'AGENCY', 'SALES_EXECUTIVE'] },
                     { name: 'Editorial Workflow', href: '/dashboard/editorial', icon: '✍️', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'EDITOR'] },
+                    { name: 'My Reviews', href: '/dashboard/editorial/reviews', icon: '📝', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'EDITOR'] },
                 ]
             },
             {
@@ -185,6 +211,7 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                 title: 'Insights & Tools',
                 items: [
                     { name: 'Analytics', href: '/dashboard/analytics', icon: '📈', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                    { name: 'Razorpay Revenue', href: '/dashboard/analytics/razorpay', icon: '💳', roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE_ADMIN'] },
                     { name: 'AI Predictions', href: '/dashboard/ai-insights', icon: '🤖', roles: ['SUPER_ADMIN', 'MANAGER', 'SALES_EXECUTIVE', 'FINANCE_ADMIN', 'AGENCY'] },
                     { name: 'Data Hub', href: '/dashboard/data-hub', icon: '📂', roles: ['SUPER_ADMIN'] },
                     { name: 'System Logs', href: '/dashboard/admin/logs', icon: '📜', roles: ['SUPER_ADMIN'] },
@@ -200,11 +227,12 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
             }
         ];
 
+        const currentRole = user?.role || userRole;
         return categories.map(cat => ({
             ...cat,
-            items: cat.items.filter(item => item.roles.includes('*') || item.roles.includes(userRole))
+            items: cat.items.filter(item => item.roles.includes('*') || item.roles.includes(currentRole))
         })).filter(cat => cat.items.length > 0);
-    }, [userRole]);
+    }, [userRole, user?.role]);
 
     return (
         <div className="min-h-screen bg-secondary-50">
@@ -243,6 +271,11 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                             <Link href="/dashboard" className="flex items-center ml-4 lg:ml-0">
                                 <h1 className="text-xl font-bold text-gradient">STM Customer</h1>
                             </Link>
+
+                            {/* Global Search */}
+                            <div className="ml-8">
+                                <GlobalSearch />
+                            </div>
                         </div>
 
                         {/* Right side - User menu */}
@@ -351,6 +384,40 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                                             Preferences
                                         </Link>
                                     </div>
+
+                                    {/* Switch Company Section */}
+                                    {availableCompanies.length > 1 && (
+                                        <div className="border-t border-secondary-100 py-2">
+                                            <p className="px-4 py-1 text-[10px] font-bold text-secondary-400 uppercase">Switch Company</p>
+                                            <div className="max-h-40 overflow-y-auto">
+                                                {availableCompanies.map((comp) => (
+                                                    <button
+                                                        key={comp.id}
+                                                        onClick={async () => {
+                                                            const token = localStorage.getItem('token');
+                                                            const res = await fetch('/api/auth/select-company', {
+                                                                method: 'POST',
+                                                                headers: {
+                                                                    'Content-Type': 'application/json',
+                                                                    'Authorization': `Bearer ${token}`
+                                                                },
+                                                                body: JSON.stringify({ companyId: comp.id })
+                                                            });
+                                                            if (res.ok) {
+                                                                const data = await res.json();
+                                                                localStorage.setItem('token', data.token);
+                                                                window.location.reload();
+                                                            }
+                                                        }}
+                                                        className={`w-full text-left px-4 py-2 text-xs flex justify-between items-center transition-colors ${comp.id === user?.companyId ? 'bg-primary-50 text-primary-700 font-bold' : 'text-secondary-600 hover:bg-secondary-50'}`}
+                                                    >
+                                                        <span className="truncate">{comp.name}</span>
+                                                        {comp.id === user?.companyId && <span className="text-primary-500">✓</span>}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Logout Button - Prominent */}
                                     <div className="border-t border-secondary-100 pt-2 px-2 pb-2">

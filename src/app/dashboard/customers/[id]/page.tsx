@@ -142,6 +142,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             secondaryEmail: formData.get('secondaryEmail'),
             website: formData.get('website'),
             assignedToUserId: formData.get('assignedToUserId') || null,
+            assignedToUserIds: formData.getAll('assignedToUserIds'),
         };
 
         if (customer.customerType === 'INSTITUTION') {
@@ -297,20 +298,23 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                                     {['SUPER_ADMIN', 'MANAGER'].includes(userRole) && (
                                         <div className="md:col-span-2 pt-4 border-t border-secondary-100">
                                             <h4 className="font-bold text-secondary-900 mb-2">Customer Assignment</h4>
-                                            <label className="label">Assign to Sales Executive</label>
+                                            <label className="label">Assign to Sales Executives (Ctrl+Click to multi-select)</label>
                                             <select
-                                                name="assignedToUserId"
-                                                className="input"
-                                                defaultValue={customer.assignedToUserId || ''}
+                                                name="assignedToUserIds"
+                                                multiple
+                                                className="input h-32"
+                                                defaultValue={customer.assignedExecutives?.map((ex: any) => ex.id) || []}
                                             >
-                                                <option value="">-- Unassigned --</option>
                                                 {/* We need to fetch staff list. For now, populating on click if possible or pre-fetch */}
                                                 {staffList.map((staff: any) => (
                                                     <option key={staff.id} value={staff.id}>
-                                                        {staff.customerProfile?.name || staff.email} ({staff.role})
+                                                        {staff.email} ({staff.role})
                                                     </option>
                                                 ))}
                                             </select>
+                                            <p className="text-[10px] text-secondary-500 mt-1 italic">
+                                                Selected executives will have full visibility of this customer.
+                                            </p>
                                         </div>
                                     )}
                                 </div>
@@ -462,10 +466,18 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                                             <p className="font-medium text-secondary-900">{customer.billingAddress || 'N/A'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm text-secondary-500">Account Manager</label>
-                                            <p className="font-medium text-primary-600">
-                                                {customer.assignedTo?.customerProfile?.name || customer.assignedTo?.email || 'Unassigned'}
-                                            </p>
+                                            <label className="text-sm text-secondary-500">Account Manager(s)</label>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {customer.assignedExecutives?.length > 0 ? (
+                                                    customer.assignedExecutives.map((exec: any) => (
+                                                        <span key={exec.id} className="px-2 py-0.5 bg-primary-50 text-primary-700 rounded text-xs font-bold border border-primary-100">
+                                                            {exec.email.split('@')[0]}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <p className="font-medium text-secondary-400 italic">Unassigned</p>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

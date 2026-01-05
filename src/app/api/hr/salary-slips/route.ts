@@ -18,8 +18,12 @@ export async function GET(req: NextRequest) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
             where.employeeId = employeeId;
+            // Also ensure the employee belongs to the company context
+            if (user.companyId) {
+                where.employee = { user: { companyId: user.companyId } };
+            }
         } else if (showAll && ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role)) {
-            if (user.role !== 'SUPER_ADMIN') {
+            if (user.companyId) {
                 where.employee = { user: { companyId: user.companyId } };
             }
         } else {

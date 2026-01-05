@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
                 priority: priority || 'MEDIUM',
                 status: 'PENDING',
                 relatedCustomerId,
-                relatedSubscriptionId
+                relatedSubscriptionId,
+                companyId: (decoded as any).companyId
             }
         });
 

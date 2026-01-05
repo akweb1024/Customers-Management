@@ -9,10 +9,17 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        const where: any = {
+            role: { in: ['SALES_EXECUTIVE', 'FINANCE_ADMIN', 'MANAGER', 'SUPER_ADMIN'] }
+        };
+
+        const userCompanyId = (decoded as any).companyId;
+        if (userCompanyId) {
+            where.companies = { some: { id: userCompanyId } };
+        }
+
         const team = await prisma.user.findMany({
-            where: {
-                role: { in: ['SALES_EXECUTIVE', 'FINANCE_ADMIN', 'MANAGER', 'SUPER_ADMIN'] }
-            },
+            where,
             select: {
                 id: true,
                 email: true,

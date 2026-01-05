@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
             where: { email },
             include: {
                 company: true,
+                companies: true,
                 customerProfile: {
                     include: {
                         institutionDetails: true,
@@ -54,13 +55,24 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Determine if company selection is required
+        const isInternalRole = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role);
+        let availableCompanies = user.companies;
+
+        if (user.role === 'SUPER_ADMIN') {
+            // Super admin sees all companies
+            availableCompanies = await prisma.company.findMany();
+        }
+
+        const requiresCompanySelection = isInternalRole && availableCompanies.length > 1;
+
         // Generate JWT token
         const userAny = user as any;
         const token = generateToken({
             id: user.id,
             email: user.email,
             role: user.role,
-            companyId: userAny.companyId || undefined
+            companyId: (requiresCompanySelection ? undefined : (userAny.companyId || (availableCompanies.length === 1 ? availableCompanies[0].id : undefined)))
         });
 
         // Update last login
@@ -89,6 +101,8 @@ export async function POST(request: NextRequest) {
                 message: 'Login successful',
                 token,
                 user: userWithoutPassword,
+                requiresCompanySelection,
+                availableCompanies: isInternalRole ? availableCompanies : [],
             },
             { status: 200 }
         );

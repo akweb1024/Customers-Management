@@ -9,10 +9,13 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        const where: any = {};
+        if (user.companyId) {
+            where.jobPosting = { companyId: user.companyId };
+        }
+
         const applications = await prisma.jobApplication.findMany({
-            where: user.role === 'SUPER_ADMIN' ? {} : {
-                jobPosting: { companyId: user.companyId }
-            },
+            where,
             include: {
                 jobPosting: true,
                 examAttempt: true,

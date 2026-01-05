@@ -1,7 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import {
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    PieChart, Pie, Cell, BarChart, Bar, Legend
+} from 'recharts';
 
 export default function AnalyticsPage() {
     const [data, setData] = useState<any>(null);
@@ -69,26 +73,46 @@ export default function AnalyticsPage() {
                     {/* Revenue History Card */}
                     <div className="card-premium">
                         <h3 className="text-lg font-bold text-secondary-900 mb-6 flex items-center">
-                            <span className="mr-2">📈</span> Revenue Trends (Last 6 Months)
+                            <span className="mr-2">📈</span> Revenue Trends (Monthly)
                         </h3>
-                        <div className="h-64 flex items-end justify-between gap-2 px-4">
-                            {data.revenueHistory.map((item: any) => {
-                                const max = Math.max(...data.revenueHistory.map((h: any) => h.value), 1);
-                                const height = (item.value / max) * 100;
-                                return (
-                                    <div key={item.name} className="flex-1 flex flex-col items-center group relative">
-                                        <div
-                                            className="w-full bg-primary-500 rounded-t-lg transition-all duration-500 hover:bg-primary-600"
-                                            style={{ height: `${height}%` }}
-                                        >
-                                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-secondary-900 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                                                ${item.value.toLocaleString()}
-                                            </div>
-                                        </div>
-                                        <span className="text-[10px] sm:text-xs text-secondary-500 mt-2 font-medium">{item.name}</span>
-                                    </div>
-                                );
-                            })}
+                        <div className="h-72 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={data.revenueHistory}>
+                                    <defs>
+                                        <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis
+                                        dataKey="name"
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                                        dy={10}
+                                    />
+                                    <YAxis
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                                        tickFormatter={(value) => `₹${value.toLocaleString()}`}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                                        formatter={(value: any) => [`₹${value.toLocaleString()}`, 'Revenue']}
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="value"
+                                        stroke="#2563eb"
+                                        strokeWidth={3}
+                                        fillOpacity={1}
+                                        fill="url(#colorRev)"
+                                        animationDuration={2000}
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
                         </div>
                     </div>
 
@@ -123,28 +147,37 @@ export default function AnalyticsPage() {
                     </div>
 
                     {/* Top Journals List */}
-                    <div className="card-premium">
+                    <div className="card-premium lg:col-span-2">
                         <h3 className="text-lg font-bold text-secondary-900 mb-6 flex items-center">
-                            <span className="mr-2">📚</span> Performance by Journal
+                            <span className="mr-2">📚</span> Journal Performance & Market Share
                         </h3>
-                        <div className="space-y-4">
-                            {data.topJournals.map((journal: any, idx: number) => (
-                                <div key={journal.name} className="flex items-center justify-between p-4 bg-secondary-50 rounded-xl border border-secondary-100">
-                                    <div className="flex items-center space-x-4">
-                                        <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center font-bold text-secondary-400">
-                                            {idx + 1}
-                                        </span>
-                                        <div>
-                                            <p className="font-bold text-secondary-900 truncate max-w-[150px] sm:max-w-xs">{journal.name}</p>
-                                            <p className="text-xs text-secondary-500">{journal.count} Active Subscriptions</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="font-bold text-primary-600">${journal.revenue.toLocaleString()}</p>
-                                        <p className="text-[10px] text-secondary-400 font-bold uppercase tracking-widest">Revenue</p>
-                                    </div>
-                                </div>
-                            ))}
+                        <div className="h-80 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={data.topJournals} layout="vertical" margin={{ left: 40, right: 40 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                                    <XAxis type="number" hide />
+                                    <YAxis
+                                        dataKey="name"
+                                        type="category"
+                                        axisLine={false}
+                                        tickLine={false}
+                                        width={150}
+                                        tick={{ fill: '#475569', fontSize: 11, fontWeight: 700 }}
+                                    />
+                                    <Tooltip
+                                        cursor={{ fill: '#f8fafc' }}
+                                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                        formatter={(value: any, name: any) => name === 'revenue' ? [`₹${value.toLocaleString()}`, 'Revenue'] : [value, 'Subscribers']}
+                                    />
+                                    <Bar
+                                        dataKey="revenue"
+                                        fill="#2563eb"
+                                        radius={[0, 10, 10, 0]}
+                                        barSize={20}
+                                        animationDuration={1500}
+                                    />
+                                </BarChart>
+                            </ResponsiveContainer>
                         </div>
                     </div>
 
@@ -153,13 +186,27 @@ export default function AnalyticsPage() {
                         <h3 className="text-lg font-bold text-secondary-900 mb-6 flex items-center">
                             <span className="mr-2">🔌</span> Acquisition Channels
                         </h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            {data.channelSplit.map((channel: any) => (
-                                <div key={channel.name} className="p-6 text-center rounded-2xl bg-secondary-50 border-2 border-dashed border-secondary-200">
-                                    <p className="text-4xl font-black text-secondary-900">{channel.value}</p>
-                                    <p className="text-sm font-bold text-secondary-500 uppercase mt-2">{channel.name}</p>
-                                </div>
-                            ))}
+                        <div className="h-64 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={data.channelSplit}
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                        animationDuration={1500}
+                                    >
+                                        {data.channelSplit.map((entry: any, index: number) => (
+                                            <Cell key={`cell-${index}`} fill={['#2563eb', '#10b981', '#f59e0b', '#ef4444'][index % 4]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                    />
+                                    <Legend verticalAlign="bottom" height={36} />
+                                </PieChart>
+                            </ResponsiveContainer>
                         </div>
                     </div>
 

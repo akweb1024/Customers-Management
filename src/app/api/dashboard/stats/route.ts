@@ -18,16 +18,16 @@ export async function GET(req: NextRequest) {
         let customerProfileId: string | undefined;
         let whereClause: any = {};
 
-        // Multi-tenancy: Restrict to company if not SUPER_ADMIN
-        if (role !== 'SUPER_ADMIN' && userCompanyId) {
+        if (userCompanyId) {
             whereClause.companyId = userCompanyId;
         }
 
         if (role === 'CUSTOMER') {
             const profile = await prisma.customerProfile.findUnique({ where: { userId } });
-            if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-            customerProfileId = profile.id;
-            whereClause = { ...whereClause, customerProfileId: profile.id };
+            if (profile) {
+                customerProfileId = profile.id;
+                whereClause = { ...whereClause, customerProfileId: profile.id };
+            }
         } else if (role === 'AGENCY') {
             const profile = await prisma.customerProfile.findUnique({
                 where: { userId },
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
                 select: { id: true }
             });
 
-            const subordinateIds = subordinates.map(s => s.id);
+            const subordinateIds = subordinates.map((s: any) => s.id);
 
             // 2. Include Manager's own direct sales + Subordinates' sales
             whereClause = {

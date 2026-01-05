@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
         if (showAll && user && ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role)) {
             where = {}; // Managers can see all status
-            if (user.role !== 'SUPER_ADMIN') {
+            if (user.companyId) {
                 where.companyId = user.companyId;
             }
         }

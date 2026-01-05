@@ -24,8 +24,7 @@ export async function GET(req: NextRequest) {
         const where: any = {};
         const userCompanyId = (decoded as any).companyId;
 
-        // Multi-tenancy: Restrict to company if not SUPER_ADMIN
-        if (decoded.role !== 'SUPER_ADMIN' && userCompanyId) {
+        if (userCompanyId) {
             where.companyId = userCompanyId;
         }
 

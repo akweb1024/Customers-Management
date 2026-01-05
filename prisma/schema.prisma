@@ -27,12 +27,17 @@ model Company {
   website     String?
   logoUrl     String?
   
+  // Geofencing for HQ
+  latitude    Float?
+  longitude   Float?
+  
   // Settings
   fiscalYearStart Int? // Month (1-12)
   currency    String   @default("INR")
   timezone    String   @default("Asia/Kolkata")
   
-  users       User[]
+  users       User[]   @relation("UserCompanies")
+  primaryUsers User[]  @relation("PrimaryCompany")
   departments Department[]
   customers   CustomerProfile[]
   subscriptions Subscription[]
@@ -98,7 +103,9 @@ model User {
   
   // Organization
   companyId     String?
-  company       Company? @relation(fields: [companyId], references: [id])
+  company       Company? @relation("PrimaryCompany", fields: [companyId], references: [id])
+  
+  companies     Company[] @relation("UserCompanies")
   
   departmentId  String?
   department    Department? @relation("DepartmentMembers", fields: [departmentId], references: [id])
@@ -128,6 +135,7 @@ model User {
   customerProfile CustomerProfile?
   assignedSubscriptions Subscription[] @relation("AssignedSalesExecutive")
   assignedCustomers CustomerProfile[] @relation("AssignedCustomers")
+  assignedToCustomers CustomerProfile[] @relation("CustomerToExecutives")
   communications CommunicationLog[] @relation("UserCommunications")
   auditLogs AuditLog[]
   tasks Task[]
@@ -138,6 +146,7 @@ model User {
   knowledgeArticles KnowledgeArticle[]
   courseEnrollments CourseEnrollment[]
   lessonProgress    UserLessonProgress[]
+  reviews           Review[]
 
   @@index([email])
   @@index([role])
@@ -185,6 +194,7 @@ enum UserRole {
   FINANCE_ADMIN
   CUSTOMER
   AGENCY
+  EDITOR
 }
 
 // ============================================
@@ -199,6 +209,8 @@ model CustomerProfile {
   // Assignment
   assignedToUserId  String?
   assignedTo        User?        @relation("AssignedCustomers", fields: [assignedToUserId], references: [id])
+  
+  assignedExecutives User[]      @relation("CustomerToExecutives")
 
   
   // Common fields
@@ -1166,6 +1178,8 @@ model Article {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  reviews     Review[]
 }
 
 enum ArticleStatus {
@@ -1175,6 +1189,25 @@ enum ArticleStatus {
   ACCEPTED
   REJECTED
   PUBLISHED
+}
+
+model Review {
+  id               String            @id @default(uuid())
+  articleId        String
+  article          Article           @relation(fields: [articleId], references: [id])
+  reviewerId       String
+  reviewer         User              @relation(fields: [reviewerId], references: [id])
+  rating           Int?              
+  commentsToEditor String?
+  commentsToAuthor String?
+  recommendation   String?           // ACCEPT, MINOR_REVISION, MAJOR_REVISION, REJECT
+  status           String            @default("PENDING") // PENDING, COMPLETED, CANCELLED
+  dueDate          DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([articleId])
+  @@index([reviewerId])
 }
 
 model ArticleAuthor {

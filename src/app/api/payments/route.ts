@@ -12,12 +12,12 @@ export async function GET(req: Request) {
 
         let filter: any = {};
 
-        // RBAC
-        if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE_ADMIN'].includes(user.role)) {
-            if (!user.companyId) return NextResponse.json([]);
-            filter.companyId = user.companyId;
-        } else if (companyId) {
-            filter.companyId = companyId;
+        // RBAC & Context
+        const targetCompanyId = companyId || user.companyId;
+        if (targetCompanyId) {
+            filter.companyId = targetCompanyId;
+        } else if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE_ADMIN'].includes(user.role)) {
+            return NextResponse.json([]); // Non-admins must have a company context
         }
 
         const payments = await prisma.payment.findMany({

@@ -12,12 +12,20 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Company association required' }, { status: 403 });
         }
 
+        const where: any = {};
+
+        // Contextual Filtering
+        if (user.companyId) {
+            where.user = { companyId: user.companyId };
+        }
+
+        // Role-based restrictions within the context
+        if (user.role === 'MANAGER') {
+            where.user = { ...where.user, managerId: user.id };
+        }
+
         const employees = await prisma.employeeProfile.findMany({
-            where: user.role === 'SUPER_ADMIN' ? {} : (user.role === 'MANAGER' ? {
-                user: { managerId: user.id, companyId: user.companyId }
-            } : {
-                user: { companyId: user.companyId }
-            }),
+            where: where,
             include: {
                 user: {
                     select: {

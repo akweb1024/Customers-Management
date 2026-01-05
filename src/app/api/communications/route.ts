@@ -97,10 +97,17 @@ export async function GET(req: NextRequest) {
         }
 
         if (decoded.role === 'SALES_EXECUTIVE') {
-            // Executives see logs they created OR logs for customers assigned to them
+            // Executives see logs they created OR logs for customers assigned to them (directly or via team)
             where.OR = [
                 { userId: decoded.id },
-                { customerProfile: { assignedToUserId: decoded.id } }
+                {
+                    customerProfile: {
+                        OR: [
+                            { assignedToUserId: decoded.id },
+                            { assignedExecutives: { some: { id: decoded.id } } }
+                        ]
+                    }
+                }
             ];
         } else if (decoded.role === 'MANAGER') {
             // Managers see everything in their team/company
@@ -109,7 +116,10 @@ export async function GET(req: NextRequest) {
                 { user: { managerId: decoded.id } }, // Logs by subordinates
                 {
                     customerProfile: {
-                        assignedTo: { managerId: decoded.id }
+                        OR: [
+                            { assignedTo: { managerId: decoded.id } },
+                            { assignedExecutives: { some: { managerId: decoded.id } } }
+                        ]
                     }
                 }
             ];
@@ -134,8 +144,21 @@ export async function GET(req: NextRequest) {
             prisma.communicationLog.count({ where })
         ]);
 
+        // Apply restricted visibility for SALES_EXECUTIVE
+        const processedLogs = logs.map(log => {
+            if (decoded.role === 'SALES_EXECUTIVE' && log.userId !== decoded.id) {
+                return {
+                    ...log,
+                    notes: '*** Restricted ***',
+                    subject: '*** Restricted ***',
+                    // Keep date and outcome (status)
+                };
+            }
+            return log;
+        });
+
         return NextResponse.json({
-            data: logs,
+            data: processedLogs,
             pagination: {
                 page,
                 limit,

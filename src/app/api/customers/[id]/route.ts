@@ -31,7 +31,10 @@ export async function GET(
                 institutionDetails: true,
                 agencyDetails: true,
                 assignedTo: {
-                    select: { id: true, email: true, role: true, customerProfile: { select: { name: true } } }
+                    select: { id: true, email: true, role: true }
+                },
+                assignedExecutives: {
+                    select: { id: true, email: true, role: true }
                 },
                 subscriptions: {
                     include: {
@@ -43,7 +46,7 @@ export async function GET(
                     orderBy: { createdAt: 'desc' }
                 },
                 communications: {
-                    include: { user: { select: { role: true, customerProfile: { select: { name: true } } } } },
+                    include: { user: { select: { id: true, email: true, role: true } } },
                     orderBy: { date: 'desc' }
                 }
             }
@@ -54,8 +57,25 @@ export async function GET(
         }
 
         // 3. Authorization Check (for Sales Executives)
-        if (decoded.role === 'SALES_EXECUTIVE' && customer.assignedToUserId !== decoded.id) {
+        const isAssigned = customer.assignedToUserId === decoded.id ||
+            customer.assignedExecutives.some((e: any) => e.id === decoded.id);
+
+        if (decoded.role === 'SALES_EXECUTIVE' && !isAssigned) {
             return NextResponse.json({ error: 'Forbidden: You are not assigned to this customer' }, { status: 403 });
+        }
+
+        // Apply restricted visibility for communications
+        if (decoded.role === 'SALES_EXECUTIVE') {
+            customer.communications = customer.communications.map((log: any) => {
+                if (log.userId !== decoded.id) {
+                    return {
+                        ...log,
+                        notes: '*** Restricted ***',
+                        subject: '*** Restricted ***',
+                    };
+                }
+                return log;
+            }) as any;
         }
 
         return NextResponse.json(customer);
@@ -80,7 +100,8 @@ export async function PATCH(
         const body = await req.json();
         const {
             institutionDetails,
-            assignedToUserId, // Allow updating assignment
+            assignedToUserId,
+            assignedToUserIds, // Array of IDs
             ...profileData
         } = body;
 
@@ -89,7 +110,12 @@ export async function PATCH(
                 where: { id: id },
                 data: {
                     ...profileData,
-                    ...(assignedToUserId !== undefined && { assignedToUserId })
+                    ...(assignedToUserId !== undefined && { assignedToUserId }),
+                    ...(assignedToUserIds !== undefined && {
+                        assignedExecutives: {
+                            set: assignedToUserIds.map((uid: string) => ({ id: uid }))
+                        }
+                    })
                 }
             });
 

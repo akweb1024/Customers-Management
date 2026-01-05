@@ -30,7 +30,17 @@ export async function GET(req: NextRequest) {
         };
 
         if (decoded.role === 'SALES_EXECUTIVE') {
-            whereClause.userId = decoded.id;
+            whereClause.OR = [
+                { userId: decoded.id },
+                {
+                    customerProfile: {
+                        OR: [
+                            { assignedToUserId: decoded.id },
+                            { assignedExecutives: { some: { id: decoded.id } } }
+                        ]
+                    }
+                }
+            ];
         }
         // Managers/Admins can see all? Or restrict? Let's show all for Admin/Manager for now to be helpful.
 
@@ -62,25 +72,30 @@ export async function GET(req: NextRequest) {
         const todayLogs: any[] = [];
         const upcoming: any[] = [];
 
-        logs.forEach(log => {
+        logs.forEach((log: any) => {
             if (!log.nextFollowUpDate) return;
-            const fDate = new Date(log.nextFollowUpDate);
-            // reset time for straight comparison or just compare timestamps
-            // Since nextFollowUpDate might have time 00:00:00 if coming from date picker input
 
-            // We use simple string comp for YYYY-MM-DD to be safer with timezones if locally generated
-            // But here we have Date objects.
+            // Masking for Executives
+            let processedLog = log;
+            if (decoded.role === 'SALES_EXECUTIVE' && log.userId !== decoded.id) {
+                processedLog = {
+                    ...log,
+                    notes: '*** Restricted ***',
+                    subject: '*** Restricted ***'
+                };
+            }
 
-            // Normalize fDate to start of day
+            const fDate = new Date(processedLog.nextFollowUpDate);
+            // reset time for straight comparison
             const fDateNorm = new Date(fDate);
             fDateNorm.setHours(0, 0, 0, 0);
 
             if (fDateNorm.getTime() === today.getTime()) {
-                todayLogs.push(log);
+                todayLogs.push(processedLog);
             } else if (fDateNorm.getTime() < today.getTime()) {
-                missed.push(log);
+                missed.push(processedLog);
             } else {
-                upcoming.push(log);
+                upcoming.push(processedLog);
             }
         });
 

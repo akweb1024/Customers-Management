@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import FormattedDate from '@/components/common/FormattedDate';
 import DataTransferActions from '@/components/dashboard/DataTransferActions';
@@ -241,6 +242,12 @@ export default function UsersPage() {
                         >
                             Bulk Assign Customers
                         </button>
+                        <Link
+                            href="/dashboard/users/transfer"
+                            className="btn btn-secondary bg-white border-secondary-200"
+                        >
+                            🔄 Transfer Employee
+                        </Link>
                         <DataTransferActions type="users" onSuccess={fetchUsers} />
                         <button
                             onClick={() => setShowNewModal(true)}

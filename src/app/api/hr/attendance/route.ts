@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
         });
 
         // Company Isolation
-        if (user.role !== 'SUPER_ADMIN') {
+        if (user.companyId) {
             where.companyId = user.companyId;
         }
 
@@ -121,16 +121,37 @@ export async function POST(req: NextRequest) {
             if (existing?.checkIn) return NextResponse.json({ error: 'Already checked in today' }, { status: 400 });
 
             const isRemote = workFrom === 'REMOTE';
-            // Mock Geofence Check (Center: 28.7041, 77.1025 for Delhi) - Radius 500m
-            const baseLat = 28.7041;
-            const baseLon = 77.1025;
             const userLat = parseFloat(body.latitude);
             const userLon = parseFloat(body.longitude);
 
             let isGeofenced = false;
-            if (!isNaN(userLat) && !isNaN(userLon)) {
-                const dist = Math.sqrt(Math.pow(userLat - baseLat, 2) + Math.pow(userLon - baseLon, 2));
-                isGeofenced = dist < 0.005; // Approx check
+
+            // Get company coordinates
+            if (user.companyId && !isRemote) {
+                const company = await prisma.company.findUnique({
+                    where: { id: user.companyId },
+                    select: { latitude: true, longitude: true }
+                });
+
+                if (company?.latitude && company?.longitude && !isNaN(userLat) && !isNaN(userLon)) {
+                    // Haversine formula to calculate distance in meters
+                    const R = 6371e3; // Earth radius in meters
+                    const φ1 = (userLat * Math.PI) / 180;
+                    const φ2 = (company.latitude * Math.PI) / 180;
+                    const Δφ = ((company.latitude - userLat) * Math.PI) / 180;
+                    const Δλ = ((company.longitude - userLon) * Math.PI) / 180;
+
+                    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                        Math.cos(φ1) * Math.cos(φ2) *
+                        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    const distance = R * c;
+
+                    isGeofenced = distance < 200; // 200 meters accuracy
+                    console.log(`📍 Geofence Check: Distance = ${distance.toFixed(2)}m, isGeofenced = ${isGeofenced}`);
+                }
+            } else if (isRemote) {
+                isGeofenced = true; // Remote work is always "geofenced" by definition of being allowed anywhere
             }
 
             const record = await prisma.attendance.upsert({

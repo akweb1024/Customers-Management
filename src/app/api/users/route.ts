@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
         });
 
         // Don't send passwords
-        const safeUsers = users.map(user => {
+        const safeUsers = users.map((user: any) => {
             const { password, ...safeUser } = user;
             return safeUser;
         });
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { email, password, role, managerId, companyId } = body;
+        const { email, password, role, managerId, companyId, companyIds } = body;
 
         if (!email || !password || !role) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -92,6 +92,12 @@ export async function POST(req: NextRequest) {
                 isActive: true,
                 companyId: targetCompanyId,
                 managerId: managerId || (decoded.role === 'MANAGER' ? decoded.id : undefined),
+                // Assign to multiple companies if provided
+                companies: companyIds ? {
+                    connect: companyIds.map((id: string) => ({ id }))
+                } : (targetCompanyId ? {
+                    connect: [{ id: targetCompanyId }]
+                } : undefined),
                 // Auto-create profile for staff roles
                 employeeProfile: !['CUSTOMER', 'AGENCY'].includes(role) ? {
                     create: {}
