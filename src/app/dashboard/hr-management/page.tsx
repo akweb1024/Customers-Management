@@ -24,6 +24,12 @@ export default function HRManagementPage() {
     const [selectedDocEmp, setSelectedDocEmp] = useState<any>(null);
     const [jobs, setJobs] = useState<any[]>([]);
     const [applications, setApplications] = useState<any[]>([]);
+    const [holidays, setHolidays] = useState<any[]>([]);
+    const [prodAnalysis, setProdAnalysis] = useState<any>(null);
+    const [prodDateRange, setProdDateRange] = useState({
+        startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0]
+    });
 
     // Modal state
     const [showEmpModal, setShowEmpModal] = useState(false);
@@ -243,7 +249,27 @@ export default function HRManagementPage() {
         if (activeTab === 'recruitment') fetchRecruitmentData();
         if (activeTab === 'documents' && selectedDocEmp) fetchDocuments(selectedDocEmp.id);
         if (activeTab === 'reports') fetchWorkReports();
-    }, [activeTab, selectedDocEmp, reportFilter]);
+        if (activeTab === 'holidays') fetchHolidays();
+        if (activeTab === 'productivity') fetchProductivity();
+    }, [activeTab, selectedDocEmp, prodDateRange]);
+
+    const fetchHolidays = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/hr/holidays', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (res.ok) setHolidays(await res.json());
+        } catch (err) { console.error(err); }
+    };
+
+    const fetchProductivity = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`/api/hr/productivity?startDate=${prodDateRange.startDate}&endDate=${prodDateRange.endDate}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) setProdAnalysis(await res.json());
+        } catch (err) { console.error(err); }
+    };
 
     const handleLeaveStatus = async (leaveId: string, status: 'APPROVED' | 'REJECTED') => {
         try {
@@ -493,7 +519,7 @@ export default function HRManagementPage() {
                 </div>
 
                 <div className="flex gap-2 bg-white p-2 rounded-2xl shadow-sm border border-secondary-100 w-fit overflow-x-auto max-w-full">
-                    {['employees', 'documents', 'recruitment', 'map', 'reports', 'leaves', 'attendance', 'payroll', 'analytics'].map(tab => (
+                    {['employees', 'documents', 'recruitment', 'map', 'reports', 'leaves', 'attendance', 'payroll', 'analytics', 'holidays', 'productivity'].map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -1247,17 +1273,14 @@ export default function HRManagementPage() {
                         </div>
 
                         <div className="card-premium h-[600px] relative overflow-hidden bg-slate-100 group">
-                            {/* Mock Map Background */}
                             <div className="absolute inset-0 bg-[url('https://maps.wikimedia.org/img/osm-intl,12,28.6139,77.2090,300x200.png')] bg-cover opacity-50 grayscale group-hover:grayscale-0 transition-all duration-700"></div>
 
-                            {/* Map Markers Overlay */}
                             <div className="absolute inset-0 p-10">
                                 {allAttendance.filter(a => !a.checkOut && a.latitude).map((a, i) => (
                                     <div
                                         key={a.id}
                                         className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-pointer hover:z-50 transition-all duration-300 hover:scale-110"
                                         style={{
-                                            // Mock positioning logic based on lat/lon variations (for demo)
                                             top: `${50 + (a.latitude ? (a.latitude - 28.7041) * 1000 : 0)}%`,
                                             left: `${50 + (a.longitude ? (a.longitude - 77.1025) * 1000 : 0)}%`
                                         }}
@@ -1275,7 +1298,6 @@ export default function HRManagementPage() {
                                     </div>
                                 ))}
 
-                                {/* HQ Marker */}
                                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10">
                                     <div className="w-12 h-12 rounded-full bg-indigo-600/20 animate-ping absolute"></div>
                                     <div className="w-8 h-8 rounded-full bg-indigo-600 border-2 border-white shadow-xl flex items-center justify-center text-white text-xs z-20">HQ</div>
@@ -1304,6 +1326,85 @@ export default function HRManagementPage() {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'holidays' && (
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-end">
+                            <div>
+                                <h3 className="text-2xl font-black text-secondary-900 tracking-tighter uppercase">Holiday Almanac</h3>
+                                <p className="text-secondary-500 font-medium">Official non-operational schedule.</p>
+                            </div>
+                            <button onClick={() => window.open('/dashboard/hr-management/holidays', '_blank')} className="text-xs font-black text-primary-600 uppercase tracking-widest hover:underline">Manage Detailed List ↗</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            {holidays.map((h: any) => (
+                                <div key={h.id} className="card-premium p-6 border-l-4" style={{ borderColor: h.type === 'PUBLIC' ? '#2563eb' : '#7c3aed' }}>
+                                    <p className="text-xs font-black text-secondary-400 uppercase mb-2">{new Date(h.date).toLocaleDateString(undefined, { month: 'short', day: '2-digit' })}</p>
+                                    <h4 className="font-black text-secondary-900">{h.name}</h4>
+                                    <p className="text-[10px] font-bold text-secondary-400 uppercase mt-2">{h.type}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'productivity' && (
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-end">
+                            <div>
+                                <h3 className="text-2xl font-black text-secondary-900 tracking-tighter uppercase">Productivity Intelligence</h3>
+                                <p className="text-secondary-500 font-medium">Comparative output analysis across staff.</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <input type="date" className="input text-xs" value={prodDateRange.startDate} onChange={e => setProdDateRange({ ...prodDateRange, startDate: e.target.value })} />
+                                <input type="date" className="input text-xs" value={prodDateRange.endDate} onChange={e => setProdDateRange({ ...prodDateRange, endDate: e.target.value })} />
+                            </div>
+                        </div>
+
+                        {prodAnalysis && (
+                            <div className="card-premium p-0 overflow-hidden">
+                                <table className="table">
+                                    <thead>
+                                        <tr className="text-[10px] uppercase font-black text-secondary-400 border-b border-secondary-50">
+                                            <th className="p-4">Staff Member</th>
+                                            <th className="p-4">Output Score</th>
+                                            <th className="p-4">Efficiency (Idx)</th>
+                                            <th className="p-4">Workload Distribution</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-secondary-50">
+                                        {prodAnalysis.individualAnalysis.map((item: any) => (
+                                            <tr key={item.id} className="hover:bg-secondary-50 transition-colors">
+                                                <td className="p-4">
+                                                    <p className="font-bold text-secondary-900">{item.name}</p>
+                                                    <p className="text-[9px] text-secondary-400 font-bold uppercase">{item.role}</p>
+                                                </td>
+                                                <td className="p-4">
+                                                    <p className="text-xl font-black text-secondary-900">{item.score}</p>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className={`inline-block px-2 py-1 rounded-lg text-xs font-black ${item.productivityIndex > prodAnalysis.teamSummary.avgProductivity ? 'bg-success-100 text-success-700' : 'bg-secondary-100 text-secondary-600'}`}>
+                                                        {item.productivityIndex}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-3 text-[10px] font-bold uppercase">
+                                                        <span>{item.metrics.totalTasks} Tasks</span>
+                                                        <span className="text-secondary-300">|</span>
+                                                        <span className="text-yellow-600">★ {item.metrics.avgManagerRating}</span>
+                                                        <span className="text-secondary-300">|</span>
+                                                        <span>₹{item.metrics.totalRevenue.toLocaleString()} Ref</span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        <button onClick={() => window.open('/dashboard/hr-management/productivity', '_blank')} className="btn btn-secondary w-full py-4 font-black uppercase tracking-widest text-xs">Launch Full Analytical Suite ↗</button>
                     </div>
                 )}
 

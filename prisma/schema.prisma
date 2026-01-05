@@ -53,6 +53,7 @@ model Company {
   salarySlips   SalarySlip[]
   performanceReviews PerformanceReview[]
   leaveRequests LeaveRequest[]
+  holidays      Holiday[]
   dispatchOrders DispatchOrder[]
   conferences    Conference[]
   courses        Course[]
@@ -877,6 +878,23 @@ model WorkReport {
 
   @@index([companyId])
   @@index([employeeId])
+}
+
+model Holiday {
+  id          String   @id @default(uuid())
+  name        String
+  date        DateTime
+  type        String   @default("PUBLIC") // PUBLIC, OPTIONAL, COMPANY_SPECIFIC
+  description String?
+  
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([date])
 }
 
 // SUPPLY CHAIN & OPS

@@ -11,30 +11,42 @@ export async function GET(req: Request) {
         const companyId = searchParams.get('companyId');
 
         let filter: any = {};
-
-        // RBAC & Context
         const targetCompanyId = companyId || user.companyId;
         if (targetCompanyId) {
             filter.companyId = targetCompanyId;
         } else if (!['SUPER_ADMIN', 'ADMIN', 'FINANCE_ADMIN'].includes(user.role)) {
-            return NextResponse.json([]); // Non-admins must have a company context
+            return NextResponse.json({ payments: [], history: [] });
         }
 
-        const payments = await prisma.payment.findMany({
-            where: filter,
-            include: {
-                company: {
-                    select: { name: true }
+        const [payments, history] = await Promise.all([
+            prisma.payment.findMany({
+                where: filter,
+                include: {
+                    company: { select: { name: true } },
+                    invoice: { select: { invoiceNumber: true } }
                 },
-                invoice: {
-                    select: { invoiceNumber: true }
-                }
-            },
-            orderBy: { paymentDate: 'desc' },
-        });
+                orderBy: { paymentDate: 'desc' },
+                take: 100
+            }),
+            prisma.$queryRaw`
+                SELECT 
+                    TO_CHAR("paymentDate", 'YYYY-MM') as month,
+                    SUM(amount) as total
+                FROM "Payment"
+                WHERE "status" = 'captured'
+                ${targetCompanyId ? prisma.$queryRaw`AND "companyId" = ${targetCompanyId}` : prisma.$queryRaw``}
+                GROUP BY TO_CHAR("paymentDate", 'YYYY-MM')
+                ORDER BY month ASC
+                LIMIT 12
+            `
+        ]);
 
-        return NextResponse.json(payments);
+        return NextResponse.json({
+            payments,
+            history
+        });
     } catch (error: any) {
+        console.error('Payments API Error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

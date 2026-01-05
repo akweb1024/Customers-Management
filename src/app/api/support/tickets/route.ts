@@ -106,7 +106,6 @@ export async function GET(req: NextRequest) {
         if (decoded.role === 'CUSTOMER') {
             where.customerProfile = { userId: decoded.id };
         } else if (decoded.role === 'SALES_EXECUTIVE') {
-            // Execs see tickets of their assigned customers OR where they are explicitly assigned
             where.OR = [
                 { customerProfile: { assignedToUserId: decoded.id } },
                 { assignedToId: decoded.id }
@@ -117,23 +116,33 @@ export async function GET(req: NextRequest) {
             where.status = status;
         }
 
-        const tickets = await (prisma as any).supportTicket.findMany({
-            where,
-            include: {
-                customerProfile: {
-                    select: { id: true, name: true, primaryEmail: true }
+        const [tickets, stats] = await Promise.all([
+            (prisma as any).supportTicket.findMany({
+                where,
+                include: {
+                    customerProfile: {
+                        select: { id: true, name: true, primaryEmail: true }
+                    },
+                    assignedTo: {
+                        select: { id: true, email: true }
+                    },
+                    chatRoom: {
+                        select: { id: true }
+                    }
                 },
-                assignedTo: {
-                    select: { id: true, email: true }
-                },
-                chatRoom: {
-                    select: { id: true }
-                }
-            },
-            orderBy: { updatedAt: 'desc' }
-        });
+                orderBy: { updatedAt: 'desc' }
+            }),
+            (prisma as any).supportTicket.groupBy({
+                by: ['status'],
+                where: { companyId: where.companyId },
+                _count: { id: true }
+            })
+        ]);
 
-        return NextResponse.json(tickets);
+        return NextResponse.json({
+            tickets,
+            stats: stats.reduce((acc: any, curr: any) => ({ ...acc, [curr.status]: curr._count.id }), {})
+        });
     } catch (error: any) {
         console.error('Support Tickets GET Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

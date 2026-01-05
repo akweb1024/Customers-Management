@@ -82,10 +82,10 @@ export async function GET(req: NextRequest) {
                 where: { user: { isActive: true } },
                 include: { attendance: { take: 30, orderBy: { date: 'desc' } } }
             });
-            const flightRisks = employees.filter(e => {
-                const present = e.attendance.filter(a => a.status === 'PRESENT').length;
+            const flightRisks = employees.filter((e: any) => {
+                const present = e.attendance.filter((a: any) => a.status === 'PRESENT').length;
                 return (present / 30) < 0.5; // Critical attendance
-            }).map(e => ({
+            }).map((e: any) => ({
                 id: e.id,
                 type: 'HR_ALERT',
                 title: 'Critical Flight Risk',
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
                 where: { status: 'ACTIVE', endDate: { lte: new Date(Date.now() + 86400000 * 30) }, total: { gte: 10000 } },
                 include: { customerProfile: true }
             });
-            const revenueRisks = expiringSubs.map(s => ({
+            const revenueRisks = expiringSubs.map((s: any) => ({
                 id: s.id,
                 type: 'REVENUE_ALERT',
                 title: 'High Value Churn',
@@ -118,143 +118,84 @@ export async function GET(req: NextRequest) {
             });
         }
 
-        if (type === 'hr') {
-            // HR AI MODEL SIMULATION
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        if (type === 'productivity') {
+            const { searchParams } = new URL(req.url);
+            const startDate = searchParams.get('startDate') ? new Date(searchParams.get('startDate')!) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+            const endDate = searchParams.get('endDate') ? new Date(searchParams.get('endDate')!) : new Date();
 
-            // Fetch comprehensive data
             const employees = await prisma.employeeProfile.findMany({
-                where: { user: { isActive: true } },
+                where: { user: { isActive: true, companyId: user.companyId } },
                 include: {
-                    user: { select: { email: true, role: true } },
-                    attendance: { where: { date: { gte: thirtyDaysAgo } } },
-                    performance: { orderBy: { date: 'desc' }, take: 1 },
-                    workReports: { where: { date: { gte: thirtyDaysAgo } } }
+                    user: { select: { name: true, email: true } },
+                    workReports: {
+                        where: { date: { gte: startDate, lte: endDate } }
+                    }
                 }
             });
 
-            // 1. FLIGHT RISK & PRODUCTIVITY (Original Logic Optimized)
-            const flightRisks: any[] = [];
-            let totalHours = 0;
-            let totalReports = 0;
+            const analysis = employees.map((emp: any) => {
+                const reports = emp.workReports;
+                const totals = reports.reduce((acc: any, curr: any) => ({
+                    tasks: acc.tasks + (curr.tasksCompleted || 0),
+                    tickets: acc.tickets + (curr.ticketsResolved || 0),
+                    revenue: acc.revenue + (curr.revenueGenerated || 0),
+                    rating: acc.rating + (curr.managerRating || 0),
+                    ratingCount: acc.ratingCount + (curr.managerRating ? 1 : 0),
+                    hours: acc.hours + (curr.hoursSpent || 0)
+                }), { tasks: 0, tickets: 0, revenue: 0, rating: 0, ratingCount: 0, hours: 0 });
 
-            // 2. TEAM PERFORMANCE BREAKDOWN
-            const teamStats: Record<string, { count: number, totalRating: number, totalAttendance: number, activeUsers: number }> = {};
-
-            // 3. TOP PERFORMERS SCORING
-            const scoredEmployees = (employees as any[]).map(e => {
-                // Calc Attendance Rate
-                const daysPresent = e.attendance.filter((a: any) => a.status === 'PRESENT').length;
-                const attendanceRate = daysPresent / 30;
-
-                // Calc Avg Productivity (Hours) & Revenue Impact
-                const empHours = e.workReports.reduce((acc: number, curr: any) => acc + (curr.hoursSpent || 0), 0);
-
-                // Calc Support & Activity Impact
-                const empTickets = e.workReports.reduce((acc: number, curr: any) => acc + (curr.ticketsResolved || 0), 0);
-                const empChats = e.workReports.reduce((acc: number, curr: any) => acc + (curr.chatsHandled || 0), 0);
-                const empFollowUps = e.workReports.reduce((acc: number, curr: any) => acc + (curr.followUpsCompleted || 0), 0);
-                const empActivity = empTickets + empChats + empFollowUps;
-
-                totalHours += empHours;
-                totalReports += e.workReports.length;
-
-                // Get Average Self Rating as Productivity Proxy
-                const avgSelfRating = e.workReports.length > 0
-                    ? e.workReports.reduce((acc: number, curr: any) => acc + (curr.selfRating || 0), 0) / e.workReports.length
-                    : 0;
-
-                // Get Latest Performance Review Rating
-                const reviewRating = e.performance[0]?.rating || 3;
-
-                // Risk Logic: Low attendance OR Low Productivity (Self-Rated < 4 consistently)
-                if (attendanceRate < 0.7 || (avgSelfRating > 0 && avgSelfRating < 4)) {
-                    flightRisks.push({
-                        id: e.id,
-                        name: e.user.email,
-                        reason: attendanceRate < 0.7 ? 'Low Attendance' : 'Low Daily Productivity',
-                        severity: attendanceRate < 0.5 ? 'critical' : 'warning'
-                    });
-                }
-
-                // Team Stats Aggregation
-                const role = e.user.role;
-                if (!teamStats[role]) teamStats[role] = { count: 0, totalRating: 0, totalAttendance: 0, activeUsers: 0 };
-                teamStats[role].count++;
-                teamStats[role].totalRating += reviewRating;
-                teamStats[role].totalAttendance += attendanceRate;
-                if (e.user.isActive) teamStats[role].activeUsers++;
-
-                // Score for Leaderboard (New Weighted Formula)
-                // 30% Review | 20% Hours | 30% Support/Activity | 15% Consistency | 5% Attendance
-                const outputScore = Math.min(empHours / 160, 1) * 5; // Hours
-                const activityScore = Math.min(empActivity / 50, 1) * 5; // Support impact (normalized to 50 items/month)
-                const consistencyScore = (avgSelfRating / 10) * 5;
-
-                const score = (reviewRating * 0.3) +
-                    (outputScore * 0.2) +
-                    (activityScore * 0.3) +
-                    (consistencyScore * 0.15) +
-                    (attendanceRate * 5 * 0.05);
+                const avgRating = totals.ratingCount > 0 ? totals.rating / totals.ratingCount : 0;
+                const score = (totals.tasks * 20) + (totals.tickets * 25) + (totals.revenue * 0.05) + (avgRating * 50);
 
                 return {
-                    id: e.id,
-                    email: e.user.email,
-                    role: e.user.role,
-                    score: score * 20, // Scale to 100
-                    metrics: {
-                        rating: reviewRating,
-                        attendanceRate,
-                        hours: empHours,
-                        productivity: avgSelfRating,
-                        activity: empActivity
-                    }
+                    id: emp.id,
+                    name: emp.user.name || emp.user.email.split('@')[0],
+                    score,
+                    metrics: totals,
+                    avgRating
+                };
+            }).sort((a: any, b: any) => b.score - a.score);
+
+            const topPerformers = analysis.slice(0, 3);
+            const lowPerformers = analysis.filter((emp: any) => emp.score < 50 || emp.avgRating < 2.5);
+
+            const summaries = topPerformers.map((emp: any) => {
+                const reasons = [];
+                if (emp.metrics.revenue > 10000) reasons.push(`generating ₹${emp.metrics.revenue.toLocaleString()} in revenue`);
+                if (emp.metrics.tasks > 20) reasons.push(`completing ${emp.metrics.tasks} high-priority tasks`);
+                if (emp.metrics.tickets > 10) reasons.push(`resolving ${emp.metrics.tickets} support tickets`);
+                if (emp.avgRating >= 4.5) reasons.push(`maintaining near-perfect quality ratings (★${emp.avgRating.toFixed(1)})`);
+
+                const reasonText = reasons.length > 0
+                    ? `due to ${reasons.join(', ')}.`
+                    : "showing consistent performance across all operational categories.";
+
+                return `**${emp.name}** is currently trending high ${reasonText}`;
+            });
+
+            const warnings = lowPerformers.map((emp: any) => {
+                const redFlags = [];
+                if (emp.metrics.hours > 40 && emp.score < 20) redFlags.push("high activity but critically low output");
+                if (emp.avgRating > 0 && emp.avgRating < 2) redFlags.push(`critically low manager satisfaction (★${emp.avgRating.toFixed(1)})`);
+                if (emp.metrics.hours === 0) redFlags.push("zero operational artifacts logged in this period");
+
+                const warningText = redFlags.length > 0
+                    ? `flagged for ${redFlags.join(', ')}.`
+                    : "showing a significant drop in operational velocity.";
+
+                return {
+                    id: emp.id,
+                    name: emp.name,
+                    description: warningText,
+                    severity: emp.avgRating < 1.5 ? 'critical' : 'warning'
                 };
             });
 
-            // Sort Top Performers
-            const topPerformers = scoredEmployees
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 5)
-                .map(e => ({
-                    name: e.email.split('@')[0],
-                    role: e.role,
-                    score: e.score.toFixed(1),
-                    details: `⭐ ${e.metrics.rating}/5 • 🕒 ${(e.metrics.attendanceRate * 100).toFixed(0)}% Att.`
-                }));
-
-            // Format Team Stats
-            const teamAnalysis = Object.entries(teamStats).map(([role, stat]) => ({
-                role: role.replace('_', ' '),
-                headcount: stat.count,
-                avgRating: (stat.totalRating / stat.count).toFixed(1),
-                avgAttendance: ((stat.totalAttendance / stat.count) * 100).toFixed(0) + '%'
-            }));
-
-            // Global Metrics
-            const avgDailyProductivity = employees.length > 0 && totalReports > 0
-                ? (totalHours / totalReports).toFixed(1) // Avg hours per report ~ daily
-                : 0;
-
-            const insights = flightRisks.map(r => ({
-                id: r.id,
-                title: `Risk: ${r.name.split('@')[0]}`,
-                description: `${r.reason} detected in last 30 days.`,
-                severity: r.severity,
-                icon: '📉'
-            }));
-
             return NextResponse.json({
-                metrics: {
-                    flightRiskCount: flightRisks.length,
-                    avgDailyProductivity,
-                    activeWorkforce: employees.length,
-                    teamCount: Object.keys(teamStats).length
-                },
-                insights: insights,
-                teamAnalysis,
-                topPerformers
+                summaries,
+                warnings,
+                timestamp: new Date().toISOString(),
+                model: "STM-Productivity-Gen-2.1"
             });
         }
 
@@ -271,14 +212,14 @@ export async function GET(req: NextRequest) {
 
         // Group by month
         const monthlyRevenue: Record<string, number> = {};
-        payments.forEach(p => {
+        payments.forEach((p: any) => {
             const key = `${p.paymentDate.getFullYear()}-${p.paymentDate.getMonth()}`;
             monthlyRevenue[key] = (monthlyRevenue[key] || 0) + p.amount;
         });
 
         const revenueValues = Object.values(monthlyRevenue);
         const currentAvg = revenueValues.length > 0
-            ? revenueValues.reduce((a, b) => a + b, 0) / revenueValues.length
+            ? revenueValues.reduce((a: number, b: number) => a + b, 0) / revenueValues.length
             : 0;
 
         // Simple projection: Avg + 10% growth
@@ -308,13 +249,13 @@ export async function GET(req: NextRequest) {
         });
 
         const churnRisks = expiringSubs
-            .filter(sub => {
-                const recentPositiveComms = sub.customerProfile.communications.some(c =>
+            .filter((sub: any) => {
+                const recentPositiveComms = sub.customerProfile.communications.some((c: any) =>
                     ['Renewal confirmed', 'Interested'].includes(c.outcome || '')
                 );
                 return !recentPositiveComms; // Risk if no recent positive signs
             })
-            .map(sub => ({
+            .map((sub: any) => ({
                 id: sub.customerProfile.id,
                 name: sub.customerProfile.name,
                 reason: `Subscription expires in ${Math.ceil((sub.endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days with no detailed positive engagement log.`,
@@ -340,7 +281,7 @@ export async function GET(req: NextRequest) {
             select: { id: true, name: true }
         });
 
-        const upsellOpportunities = interestedCustomers.map(c => ({
+        const upsellOpportunities = interestedCustomers.map((c: any) => ({
             id: c.id,
             name: c.name,
             reason: 'Expressed interest in recent communications.',
@@ -349,12 +290,12 @@ export async function GET(req: NextRequest) {
         }));
 
 
-        const totalChurnRiskValue = churnRisks.reduce((acc, c) => acc + c.value, 0);
-        const totalUpsellValue = upsellOpportunities.reduce((acc, c) => acc + c.value, 0);
+        const totalChurnRiskValue = churnRisks.reduce((acc: number, c: any) => acc + c.value, 0);
+        const totalUpsellValue = upsellOpportunities.reduce((acc: number, c: any) => acc + c.value, 0);
 
         const insights = [
-            ...churnRisks.slice(0, 3).map(i => ({ ...i, severity: 'high', icon: '⚠️', title: `Churn Risk: ${i.name}`, description: i.reason })),
-            ...upsellOpportunities.slice(0, 3).map(i => ({ ...i, severity: 'medium', icon: '🚀', title: `Upsell: ${i.name}`, description: i.reason }))
+            ...churnRisks.slice(0, 3).map((i: any) => ({ ...i, severity: 'high', icon: '⚠️', title: `Churn Risk: ${i.name}`, description: i.reason })),
+            ...upsellOpportunities.slice(0, 3).map((i: any) => ({ ...i, severity: 'medium', icon: '🚀', title: `Upsell: ${i.name}`, description: i.reason }))
         ];
 
         return NextResponse.json({
