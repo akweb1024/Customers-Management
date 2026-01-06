@@ -317,8 +317,8 @@ export default function CustomersPage() {
                                     )}
                                     <th>Customer</th>
                                     <th>Type</th>
+                                    <th>Institution</th>
                                     <th>Assigned To</th>
-                                    <th>Country</th>
                                     <th>Subscriptions</th>
                                     <th>Last Activity</th>
                                     <th className="text-right">Actions</th>
@@ -370,11 +370,15 @@ export default function CustomersPage() {
                                                         {customer.name.charAt(0)}
                                                     </div>
                                                     <div>
-                                                        <div className="text-sm font-bold text-secondary-900">{customer.name}</div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="text-sm font-bold text-secondary-900">{customer.name}</div>
+                                                            {customer.designation && (
+                                                                <span className="px-1.5 py-0.5 bg-secondary-100 text-secondary-600 text-[10px] font-black rounded uppercase letter-spacing-wider">
+                                                                    {customer.designation.replace('_', ' ')}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <div className="text-xs text-secondary-500">{customer.primaryEmail}</div>
-                                                        {customer.organizationName && (
-                                                            <div className="text-xs text-secondary-400 mt-0.5">{customer.organizationName}</div>
-                                                        )}
                                                     </div>
                                                 </div>
                                             </td>
@@ -384,12 +388,28 @@ export default function CustomersPage() {
                                                 </span>
                                             </td>
                                             <td className="text-sm text-secondary-600">
-                                                {customer.assignedTo?.email
-                                                    ? (customer.assignedTo.customerProfile?.name || customer.assignedTo.email)
-                                                    : <span className="text-secondary-400 italic">Unassigned</span>
-                                                }
+                                                {customer.institution ? (
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-secondary-900">{customer.institution.name}</span>
+                                                        <span className="text-[10px] font-bold text-primary-600">{customer.institution.code}</span>
+                                                    </div>
+                                                ) : customer.organizationName ? (
+                                                    <span className="text-secondary-500 italic">{customer.organizationName}</span>
+                                                ) : (
+                                                    <span className="text-secondary-400">Individual</span>
+                                                )}
                                             </td>
-                                            <td className="text-sm text-secondary-600">{customer.country || 'N/A'}</td>
+                                            <td className="text-sm text-secondary-600">
+                                                <div className="flex flex-col">
+                                                    {customer.assignedTo?.email
+                                                        ? <span className="font-medium">{(customer.assignedTo.customerProfile?.name || customer.assignedTo.email.split('@')[0])}</span>
+                                                        : <span className="text-secondary-400 italic">Unassigned</span>
+                                                    }
+                                                    {customer.assignments?.length > 1 && (
+                                                        <span className="text-[10px] text-success-600 font-bold">+{customer.assignments.length - 1} more shared</span>
+                                                    )}
+                                                </div>
+                                            </td>
                                             <td>
                                                 <span className="text-sm font-medium text-secondary-900">
                                                     {customer._count?.subscriptions || 0}

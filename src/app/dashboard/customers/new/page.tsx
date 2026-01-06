@@ -9,6 +9,7 @@ export default function NewCustomerPage() {
     const [userRole, setUserRole] = useState('CUSTOMER');
     const [loading, setLoading] = useState(false);
     const [customerType, setCustomerType] = useState('INDIVIDUAL');
+    const [institutions, setInstitutions] = useState<any[]>([]);
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -21,6 +22,16 @@ export default function NewCustomerPage() {
         } else {
             router.push('/login');
         }
+
+        const fetchInstitutions = async () => {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/institutions', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (res.ok) {
+                const data = await res.json();
+                setInstitutions(Array.isArray(data) ? data : (data.data || []));
+            }
+        };
+        fetchInstitutions();
     }, [router]);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -107,6 +118,28 @@ export default function NewCustomerPage() {
                             <div className="md:col-span-2">
                                 <label className="label">Organization Name</label>
                                 <input name="organizationName" type="text" className="input" placeholder="e.g. Harvard University or Acme Corp" />
+                            </div>
+                            <div>
+                                <label className="label">Link to Institution (Global)</label>
+                                <select name="institutionId" className="input">
+                                    <option value="">-- None / Individual --</option>
+                                    {institutions.map(inst => (
+                                        <option key={inst.id} value={inst.id}>{inst.name} ({inst.code})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="label">Designation / Role</label>
+                                <select name="designation" className="input">
+                                    <option value="">-- Select Designation --</option>
+                                    {[
+                                        'STUDENT', 'TEACHER', 'FACULTY', 'HOD', 'PRINCIPAL', 'DEAN',
+                                        'RESEARCHER', 'LIBRARIAN', 'ACCOUNTANT', 'DIRECTOR', 'REGISTRAR',
+                                        'VICE_CHANCELLOR', 'CHANCELLOR', 'STAFF', 'OTHER'
+                                    ].map(d => (
+                                        <option key={d} value={d}>{d.replace('_', ' ')}</option>
+                                    ))}
+                                </select>
                             </div>
                         </div>
                     </div>

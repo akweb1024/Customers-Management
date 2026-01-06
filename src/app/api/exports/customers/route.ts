@@ -20,19 +20,26 @@ export async function GET(req: NextRequest) {
                         lastLogin: true
                     }
                 },
+                institution: {
+                    select: {
+                        name: true,
+                        code: true
+                    }
+                },
                 _count: {
                     select: {
                         subscriptions: true,
                         communications: true
                     }
                 }
-            },
+            } as any,
             orderBy: { createdAt: 'desc' }
-        });
+        }) as any[];
 
         // Generate CSV
         const headers = [
             'ID', 'Name', 'Primary Email', 'Customer Type', 'Organization',
+            'Designation', 'Institution Name', 'Institution Code',
             'Phone', 'Country', 'State', 'City', 'Active', 'Last Login',
             'Subscriptions Count', 'Comms Count'
         ];
@@ -43,6 +50,9 @@ export async function GET(req: NextRequest) {
             c.primaryEmail,
             c.customerType,
             c.organizationName || 'N/A',
+            c.designation || 'N/A',
+            c.institution?.name || 'N/A',
+            c.institution?.code || 'N/A',
             c.primaryPhone || 'N/A',
             c.country || 'N/A',
             c.state || 'N/A',

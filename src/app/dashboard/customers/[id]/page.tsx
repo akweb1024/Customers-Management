@@ -6,6 +6,7 @@ import Link from 'next/link';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import FormattedDate from '@/components/common/FormattedDate';
 import CommunicationForm from '@/components/dashboard/CommunicationForm';
+import CustomerAssignmentManager from '@/components/dashboard/CustomerAssignmentManager';
 
 export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -18,23 +19,46 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
     const [actionLoading, setActionLoading] = useState(false);
     const [editingLog, setEditingLog] = useState<any>(null);
     const [staffList, setStaffList] = useState<any[]>([]);
+    const [institutions, setInstitutions] = useState<any[]>([]);
     const [activeFollowUpId, setActiveFollowUpId] = useState<string | null>(null);
 
     const formRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (showEditModal && ['SUPER_ADMIN', 'MANAGER'].includes(userRole)) {
-            const fetchStaff = async () => {
-                const token = localStorage.getItem('token');
-                const res = await fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } });
-                if (res.ok) {
-                    const data = await res.json();
-                    setStaffList(data.filter((u: any) => ['SALES_EXECUTIVE', 'MANAGER'].includes(u.role)));
-                }
-            };
-            fetchStaff();
+        if (showEditModal) {
+            const token = localStorage.getItem('token');
+
+            if (['SUPER_ADMIN', 'MANAGER'].includes(userRole)) {
+                fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } })
+                    .then(res => res.json())
+                    .then(data => setStaffList(data.filter((u: any) => ['SALES_EXECUTIVE', 'MANAGER'].includes(u.role))));
+            }
+
+            fetch('/api/institutions', { headers: { 'Authorization': `Bearer ${token}` } })
+                .then(res => res.json())
+                .then(data => setInstitutions(Array.isArray(data) ? data : (data.data || [])));
         }
     }, [showEditModal, userRole]);
+
+    const fetchCustomer = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`/api/customers/${id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setCustomer(data);
+            } else {
+                router.push('/dashboard/customers');
+            }
+        } catch (error) {
+            console.error('Error fetching customer:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -42,26 +66,6 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             const user = JSON.parse(userData);
             setUserRole(user.role);
         }
-
-        const fetchCustomer = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                const res = await fetch(`/api/customers/${id}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (res.ok) {
-                    const data = await res.json();
-                    setCustomer(data);
-                } else {
-                    router.push('/dashboard/customers');
-                }
-            } catch (error) {
-                console.error('Error fetching customer:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
 
         fetchCustomer();
     }, [id, router]);
@@ -141,6 +145,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             primaryPhone: formData.get('primaryPhone'),
             secondaryEmail: formData.get('secondaryEmail'),
             website: formData.get('website'),
+            institutionId: formData.get('institutionId') || null,
+            designation: formData.get('designation') || null,
             assignedToUserId: formData.get('assignedToUserId') || null,
             assignedToUserIds: formData.getAll('assignedToUserIds'),
         };
@@ -233,13 +239,31 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                             </svg>
                         </button>
                         <div>
-                            <h1 className="text-3xl font-bold text-secondary-900">{customer.name}</h1>
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-3xl font-bold text-secondary-900">{customer.name}</h1>
+                                {customer.designation && (
+                                    <span className="px-2 py-0.5 bg-secondary-100 text-secondary-600 text-xs font-black rounded uppercase tracking-wider">
+                                        {customer.designation.replace('_', ' ')}
+                                    </span>
+                                )}
+                            </div>
                             <div className="flex items-center mt-1 space-x-3 text-secondary-500">
                                 <span>{customer.primaryEmail}</span>
                                 <span>•</span>
                                 <span className={`badge ${customer.customerType === 'INSTITUTION' ? 'badge-success' : 'badge-primary'}`}>
                                     {customer.customerType}
                                 </span>
+                                {customer.institution && (
+                                    <>
+                                        <span>•</span>
+                                        <Link
+                                            href={`/dashboard/institutions/${customer.institution.id}`}
+                                            className="text-primary-600 font-bold hover:underline flex items-center gap-1"
+                                        >
+                                            🏛️ {customer.institution.name}
+                                        </Link>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -292,6 +316,30 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                                     <div className="md:col-span-2">
                                         <label className="label">Website</label>
                                         <input name="website" className="input" defaultValue={customer.website} placeholder="https://" />
+                                    </div>
+
+                                    <div>
+                                        <label className="label">Link to Institution</label>
+                                        <select name="institutionId" className="input" defaultValue={customer.institutionId || ''}>
+                                            <option value="">-- None / Individual --</option>
+                                            {institutions.map(inst => (
+                                                <option key={inst.id} value={inst.id}>{inst.name} ({inst.code})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="label">Designation</label>
+                                        <select name="designation" className="input" defaultValue={customer.designation || ''}>
+                                            <option value="">-- Select Designation --</option>
+                                            {[
+                                                'STUDENT', 'TEACHER', 'FACULTY', 'HOD', 'PRINCIPAL', 'DEAN',
+                                                'RESEARCHER', 'LIBRARIAN', 'ACCOUNTANT', 'DIRECTOR', 'REGISTRAR',
+                                                'VICE_CHANCELLOR', 'CHANCELLOR', 'STAFF', 'OTHER'
+                                            ].map(d => (
+                                                <option key={d} value={d}>{d.replace('_', ' ')}</option>
+                                            ))}
+                                        </select>
                                     </div>
 
                                     {/* Assignment - Only for Admins/Managers */}
@@ -700,12 +748,22 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
 
                     {/* Sidebar Stats */}
                     <div className="space-y-6">
+                        {/* Assignment Manager */}
+                        <div className="card-premium">
+                            <CustomerAssignmentManager
+                                customerId={customer.id}
+                                customerName={customer.name}
+                                currentAssignments={customer.assignments || []}
+                                onUpdate={fetchCustomer}
+                            />
+                        </div>
+
                         <div className="card-premium">
                             <h3 className="text-lg font-bold text-secondary-900 mb-4">Quick Stats</h3>
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center py-2 border-b border-secondary-100 italic">
                                     <span className="text-secondary-600">Total Lifetime Value</span>
-                                    <span className="font-bold text-primary-600">${customer.subscriptions.reduce((acc: number, s: any) => acc + s.total, 0).toLocaleString()}</span>
+                                    <span className="font-bold text-primary-600">₹{customer.subscriptions.reduce((acc: number, s: any) => acc + s.total, 0).toLocaleString()}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2 border-b border-secondary-100">
                                     <span className="text-secondary-600">Active Licenses</span>

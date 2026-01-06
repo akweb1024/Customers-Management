@@ -58,7 +58,14 @@ export default function DataHubPage() {
             description: 'Import client profiles, institutional contacts, and agency partners.',
             type: 'customers' as const,
             icon: '🙍‍♂️',
-            fields: ['Name', 'Email', 'CustomerType', 'OrganizationName', 'Country', 'Phone']
+            fields: ['Name', 'Email', 'CustomerType', 'OrganizationName', 'Designation', 'InstitutionCode']
+        },
+        {
+            title: 'Institutions',
+            description: 'Global registry of universities, colleges, and corporate libraries.',
+            type: 'institutions' as const,
+            icon: '🏛️',
+            fields: ['Name', 'Code', 'Type', 'Category', 'Email', 'Country']
         },
         {
             title: 'Subscriptions',

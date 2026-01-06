@@ -36,6 +36,17 @@ export async function GET(
                 assignedExecutives: {
                     select: { id: true, email: true, role: true }
                 },
+                institution: {
+                    select: { id: true, name: true, code: true, type: true }
+                },
+                assignments: {
+                    where: { isActive: true },
+                    include: {
+                        employee: {
+                            select: { id: true, email: true, role: true }
+                        }
+                    }
+                },
                 subscriptions: {
                     include: {
                         items: {
@@ -49,7 +60,7 @@ export async function GET(
                     include: { user: { select: { id: true, email: true, role: true } } },
                     orderBy: { date: 'desc' }
                 }
-            }
+            } as any
         });
 
         if (!customer) {
@@ -58,7 +69,7 @@ export async function GET(
 
         // 3. Authorization Check (for Sales Executives)
         const isAssigned = customer.assignedToUserId === decoded.id ||
-            (customer.assignedExecutives as any[]).some((e) => e.id === decoded.id);
+            ((customer as any).assignedExecutives as any[]).some((e) => e.id === decoded.id);
 
         if (decoded.role === 'SALES_EXECUTIVE' && !isAssigned) {
             return NextResponse.json({ error: 'Forbidden: You are not assigned to this customer' }, { status: 403 });
@@ -66,7 +77,7 @@ export async function GET(
 
         // Apply restricted visibility for communications
         if (decoded.role === 'SALES_EXECUTIVE') {
-            (customer as any).communications = customer.communications.map((log) => {
+            (customer as any).communications = (customer as any).communications.map((log: any) => {
                 if (log.userId !== decoded.id) {
                     return {
                         ...log,

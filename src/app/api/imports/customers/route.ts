@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
         for (const rawItem of data) {
             const item: any = {};
             Object.keys(rawItem).forEach(key => {
-                item[key.toLowerCase().replace(/\s/g, '')] = rawItem[key];
+                item[key.toLowerCase().replace(/\s/g, '').replace(/[#/]/g, '')] = rawItem[key];
             });
 
             const email = item.primaryemail || item.email;
@@ -45,6 +45,21 @@ export async function POST(req: NextRequest) {
             const role = type === 'AGENCY' ? 'AGENCY' : 'CUSTOMER';
             const hashedPassword = await bcrypt.hash('customer123', 12);
 
+            // Handle Designation
+            let designation: any = null;
+            if (item.designation) {
+                designation = item.designation.toUpperCase().replace(/\s/g, '_');
+            }
+
+            // Handle Institution Link
+            let institutionId: string | null = null;
+            if (item.institutioncode) {
+                const inst = await (prisma as any).institution.findUnique({
+                    where: { code: item.institutioncode }
+                });
+                if (inst) institutionId = inst.id;
+            }
+
             // Create User and Profile in a transaction
             await prisma.$transaction(async (tx) => {
                 const user = await tx.user.create({
@@ -57,13 +72,15 @@ export async function POST(req: NextRequest) {
                     }
                 });
 
-                await tx.customerProfile.create({
+                await (tx as any).customerProfile.create({
                     data: {
                         userId: user.id,
                         customerType: type,
                         name: name,
                         primaryEmail: email,
                         organizationName: item.organizationname || item.college || item.university,
+                        designation,
+                        institutionId,
                         primaryPhone: item.primaryphone || item.phone || '--',
                         country: item.country,
                         state: item.state,

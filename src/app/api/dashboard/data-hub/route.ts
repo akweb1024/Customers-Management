@@ -9,13 +9,16 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const [journals, users, companies, customers] = await Promise.all([
+        const [journals, users, companies, customers, institutions] = await Promise.all([
             prisma.journal.count(),
             prisma.user.count({
                 where: decoded.role === 'SUPER_ADMIN' ? {} : { companyId: decoded.companyId }
             }),
             prisma.company.count(),
             prisma.customerProfile.count({
+                where: decoded.role === 'SUPER_ADMIN' ? {} : { companyId: decoded.companyId }
+            }),
+            (prisma as any).institution.count({
                 where: decoded.role === 'SUPER_ADMIN' ? {} : { companyId: decoded.companyId }
             })
         ]);
@@ -24,7 +27,8 @@ export async function GET(req: NextRequest) {
             journals,
             users,
             companies,
-            customers
+            customers,
+            institutions
         });
 
     } catch (error: any) {

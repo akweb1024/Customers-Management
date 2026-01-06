@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { parseCSV } from '@/lib/csv-utils';
 
 interface DataTransferActionsProps {
-    type: 'journals' | 'users' | 'companies' | 'customers' | 'subscriptions' | 'invoices';
+    type: 'journals' | 'users' | 'companies' | 'customers' | 'institutions' | 'subscriptions' | 'invoices';
     onSuccess: () => void;
 }
 
