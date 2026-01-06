@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-        const limit = parseInt(searchParams.get('limit') || '50');
+        const limit = parseInt(searchParams.get('limit') || '100');
         const offset = parseInt(searchParams.get('offset') || '0');
 
         const where: any = {};
@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
             where.companyId = user.companyId;
         }
 
+        // Fetch payments with Razorpay data
         const [payments, total, lastSync] = await Promise.all([
             prisma.payment.findMany({
                 where: {
@@ -50,6 +51,65 @@ export async function GET(req: NextRequest) {
             })
         ]);
 
+        // Transform payments to match Razorpay structure
+        const transformedPayments = payments.map(p => {
+            // Parse metadata if stored as JSON
+            let metadata: any = {};
+            try {
+                metadata = p.metadata && typeof p.metadata === 'string' ? JSON.parse(p.metadata) : {};
+            } catch (e) {
+                metadata = {};
+            }
+
+            return {
+                id: p.razorpayPaymentId || p.id,
+                razorpayPaymentId: p.razorpayPaymentId,
+                amount: p.amount,
+                base_amount: metadata.base_amount || p.amount,
+                base_currency: metadata.base_currency || 'INR',
+                currency: p.currency || 'INR',
+                status: p.status || 'unknown',
+                method: p.paymentMethod || metadata.method || 'unknown',
+                email: metadata.email || '',
+                contact: metadata.contact || '',
+                description: metadata.description || p.notes || '',
+                international: metadata.international || false,
+                created_at: Math.floor(new Date(p.paymentDate).getTime() / 1000),
+                captured: p.status === 'captured',
+
+                // Card details if available
+                card: metadata.card || null,
+                card_id: metadata.card_id || null,
+
+                // Wallet info
+                wallet: metadata.wallet || null,
+
+                // Bank/UPI
+                bank: metadata.bank || null,
+                vpa: metadata.vpa || null,
+
+                // Fees and tax
+                fee: metadata.fee || 0,
+                tax: metadata.tax || 0,
+
+                // Acquirer data
+                acquirer_data: metadata.acquirer_data || {},
+
+                // Error info
+                error_code: metadata.error_code || null,
+                error_description: metadata.error_description || null,
+                error_reason: metadata.error_reason || null,
+
+                // Refund
+                amount_refunded: metadata.amount_refunded || 0,
+                refund_status: metadata.refund_status || null,
+
+                // Relations
+                company: p.company,
+                invoice: p.invoice
+            };
+        });
+
         // Month-on-Month Comparison
         const now = new Date();
         const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -79,7 +139,7 @@ export async function GET(req: NextRequest) {
         const lastMonthRevenue = lastMonthStats._sum.amount || 0;
         const momGrowth = lastMonthRevenue === 0 ? 100 : ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100;
 
-        // Currency Rates (Approximate Real-time for demonstration, ideally from an API)
+        // Currency Rates (Should be fetched from an API in production)
         const exchangeRates: Record<string, number> = {
             'INR': 1,
             'Paise': 0.01,
@@ -89,108 +149,69 @@ export async function GET(req: NextRequest) {
             'AED': 22.7,
             'SGD': 61.5,
             'AUD': 55.4,
-            'CAD': 61.2
+            'CAD': 61.2,
+            'JPY': 0.56,
+            'CNY': 11.5
         };
 
-        // Aggregated Stats by Currency
-        const currencyStats = await prisma.payment.groupBy({
-            by: ['currency'],
-            where: {
-                ...where,
-                razorpayPaymentId: { not: null }
-            },
-            _sum: { amount: true },
-            _count: { id: true }
-        });
-
+        // Get total revenue in INR
         let totalRevenueINR = 0;
-        const revenueByCurrency = currencyStats.map(c => {
-            const currency = (c.currency || 'INR').toUpperCase();
-            const amount = c._sum.amount || 0;
-            const rate = exchangeRates[currency] || 1;
-            const inrValue = amount * rate;
+        const currencyMap = new Map<string, { amount: number, count: number }>();
+
+        payments.forEach(p => {
+            const curr = (p.currency || 'INR').toUpperCase();
+            const rate = exchangeRates[curr] || 1;
+            const actualAmount = p.amount / 100; // Convert from paise
+            const inrValue = actualAmount * rate;
             totalRevenueINR += inrValue;
 
-            return {
-                currency,
-                amount,
-                count: c._count.id,
-                inrEquivalent: inrValue
-            };
+            const existing = currencyMap.get(curr) || { amount: 0, count: 0 };
+            currencyMap.set(curr, {
+                amount: existing.amount + p.amount,
+                count: existing.count + 1
+            });
         });
 
-        // Company Comparison (For Super Admins)
-        let companyComparison: any[] = [];
-        if (user.role === 'SUPER_ADMIN') {
-            const rawCompanyComparison = await prisma.payment.groupBy({
-                by: ['companyId', 'currency'],
-                where: { razorpayPaymentId: { not: null } },
-                _sum: { amount: true },
-                _count: { id: true },
-            });
+        const revenueByCurrency = Array.from(currencyMap.entries()).map(([currency, data]) => ({
+            currency,
+            amount: data.amount,
+            count: data.count,
+            inrEquivalent: (data.amount / 100) * (exchangeRates[currency] || 1)
+        }));
 
-            // Fetch company names
-            const companies = await prisma.company.findMany({
-                where: { id: { in: rawCompanyComparison.map((c: any) => c.companyId).filter((id: any) => id !== null) as string[] } },
-                select: { id: true, name: true }
-            });
-
-            companyComparison = rawCompanyComparison.map((stat: any) => {
-                const currency = (stat.currency || 'INR').toUpperCase();
-                const amount = stat._sum.amount || 0;
-                const rate = exchangeRates[currency] || 1;
-
-                return {
-                    ...stat,
-                    currency,
-                    inrValue: amount * rate,
-                    companyName: companies.find((c: any) => c.id === stat.companyId)?.name || 'Unknown'
-                };
-            });
-        }
-
+        // Daily Revenue Trend
         const dailyRevenue: any[] = await prisma.$queryRaw`
             SELECT 
                 CAST("paymentDate" AS DATE) as date,
-                currency,
                 SUM(amount) as revenue
             FROM "Payment"
             WHERE "razorpayPaymentId" IS NOT NULL
             ${user.role !== 'SUPER_ADMIN' ? Prisma.sql`AND "companyId" = ${user.companyId}` : Prisma.empty}
-            GROUP BY CAST("paymentDate" AS DATE), currency
+            GROUP BY CAST("paymentDate" AS DATE)
             ORDER BY date DESC
             LIMIT 60
         `;
 
         // Process daily revenue to INR for charts
-        const processedDaily = dailyRevenue.reduce((acc: any[], curr: any) => {
+        const processedDaily = dailyRevenue.map((curr: any) => {
             const dateStr = curr.date.toISOString().split('T')[0];
-            const existing = acc.find(a => a.date === dateStr);
-            const rate = exchangeRates[(curr.currency || 'INR').toUpperCase()] || 1;
-            const inrVal = curr.revenue * rate;
-
-            if (existing) {
-                existing.revenue += inrVal;
-            } else {
-                acc.push({ date: dateStr, revenue: inrVal });
-            }
-            return acc;
-        }, []).slice(0, 30);
+            const actualRevenue = curr.revenue / 100; // Convert from paise
+            return { date: dateStr, revenue: actualRevenue };
+        }).slice(0, 30);
 
         return NextResponse.json({
-            payments,
+            payments: transformedPayments,
             total,
             stats: {
-                totalRevenue: totalRevenueINR, // Combined in INR
-                revenueByCurrency, // Split by original currency
+                totalRevenue: totalRevenueINR,
+                revenueByCurrency,
                 totalCount: total || 0,
-                currentMonthRevenue,
-                lastMonthRevenue,
+                currentMonthRevenue: currentMonthRevenue / 100, // Convert from paise
+                lastMonthRevenue: lastMonthRevenue / 100,
                 momGrowth: momGrowth.toFixed(1)
             },
             lastSync,
-            dailyRevenue: processedDaily,
-            companyComparison
+            dailyRevenue: processedDaily
         });
 
     } catch (error: any) {

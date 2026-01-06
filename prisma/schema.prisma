@@ -515,6 +515,7 @@ model Payment {
   razorpayOrderId   String?
   razorpaySignature String?
   status            String? // captured, refunded, failed, etc.
+  metadata          String? // JSON string for storing rich Razorpay data
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
