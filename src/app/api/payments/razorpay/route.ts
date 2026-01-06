@@ -161,8 +161,7 @@ export async function GET(req: NextRequest) {
         payments.forEach(p => {
             const curr = (p.currency || 'INR').toUpperCase();
             const rate = exchangeRates[curr] || 1;
-            const actualAmount = p.amount / 100; // Convert from paise
-            const inrValue = actualAmount * rate;
+            const inrValue = p.amount * rate;
             totalRevenueINR += inrValue;
 
             const existing = currencyMap.get(curr) || { amount: 0, count: 0 };
@@ -176,7 +175,7 @@ export async function GET(req: NextRequest) {
             currency,
             amount: data.amount,
             count: data.count,
-            inrEquivalent: (data.amount / 100) * (exchangeRates[currency] || 1)
+            inrEquivalent: data.amount * (exchangeRates[currency] || 1)
         }));
 
         // Daily Revenue Trend
@@ -195,8 +194,7 @@ export async function GET(req: NextRequest) {
         // Process daily revenue to INR for charts
         const processedDaily = dailyRevenue.map((curr: any) => {
             const dateStr = curr.date.toISOString().split('T')[0];
-            const actualRevenue = curr.revenue / 100; // Convert from paise
-            return { date: dateStr, revenue: actualRevenue };
+            return { date: dateStr, revenue: curr.revenue };
         }).slice(0, 30);
 
         return NextResponse.json({
@@ -206,8 +204,8 @@ export async function GET(req: NextRequest) {
                 totalRevenue: totalRevenueINR,
                 revenueByCurrency,
                 totalCount: total || 0,
-                currentMonthRevenue: currentMonthRevenue / 100, // Convert from paise
-                lastMonthRevenue: lastMonthRevenue / 100,
+                currentMonthRevenue: currentMonthRevenue,
+                lastMonthRevenue: lastMonthRevenue,
                 momGrowth: momGrowth.toFixed(1)
             },
             lastSync,

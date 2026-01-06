@@ -68,11 +68,12 @@ export default function RazorpayTrackerPage() {
     })).reverse() || [];
 
     const formatCurrency = (amount: number, currency: string = 'INR') => {
+        // Database stores amounts in actual currency value (e.g., 2799 = ₹2799, not paise)
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency: currency.toUpperCase() === 'PAISE' ? 'INR' : currency.toUpperCase(),
             minimumFractionDigits: 2
-        }).format(amount / 100); // Razorpay amounts are in paise/cents
+        }).format(amount);
     };
 
     // Payment Method Distribution
@@ -340,9 +341,9 @@ export default function RazorpayTrackerPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${payment.status === 'captured' ? 'bg-green-100 text-green-700' :
-                                                    payment.status === 'authorized' ? 'bg-yellow-100 text-yellow-700' :
-                                                        payment.status === 'failed' ? 'bg-red-100 text-red-700' :
-                                                            'bg-gray-100 text-gray-700'
+                                                payment.status === 'authorized' ? 'bg-yellow-100 text-yellow-700' :
+                                                    payment.status === 'failed' ? 'bg-red-100 text-red-700' :
+                                                        'bg-gray-100 text-gray-700'
                                                 }`}>
                                                 {payment.status}
                                             </span>
