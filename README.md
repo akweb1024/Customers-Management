@@ -4,21 +4,15 @@ A comprehensive web application for managing journal subscriptions, customers, s
 
 ## 🚀 Features
 
-### Phase 1, 2 & 3 - Currently Implemented
-- ✅ **User Authentication & Authorization** (RBAC, JWT)
-- ✅ **Customer Management** (Individuals/Institutions/Agencies)
-- ✅ **Subscription Lifecycle Architecture** (Request -> Approval -> Billing -> Activation)
-- ✅ **Automated Financials** (Invoice generation, payment tracking, partial payments)
-- ✅ **Email Engine** (Professional HTML templates for requests, approvals, and receipts)
-- ✅ **Advanced Analytics** (Revenue trends, journal performance, channel split)
-- ✅ **Agency Management** (Real-time commission tracking at 10% rate)
-- ✅ **Data Portability** (Secure CSV exports for Subscriptions and Invoices)
-
-### Phase 4 - Completed
-- ✅ **Bulk Communications** (Targeted email broadcasts to customer segments)
-- ✅ **Advanced Search** (Filtering by Geography, ISSN, and Journal Metadata)
-- ✅ **Automated Renewal Reminders** (30/60/90 day triggers + Manual UI triggers)
-- ✅ **Task Management Workflow** (Integrated follow-up response and resolution)
+### Phase 1, 2, 3 & 4 - Currently Implemented
+- ✅ **Institution-Centric Architecture**: Unified dashboards for universities/libraries with bulk member assignment.
+- ✅ **Advanced Data Hub**: Bulk CSV Import/Export for Institutions, Customers, Journals, and Subscriptions.
+- ✅ **Dynamic Assignment Manager**: Multi-executive assignment tracking (Primary/Secondary/Support) for customers.
+- ✅ **Subscription Lifecycle**: Request -> Approval -> Billing -> Activation with automated financials.
+- ✅ **Automated Financials**: Invoice generation, payment tracking, and agency commission (10%) management.
+- ✅ **Communication Engine**: Professional email automation for renewals, requests, and bulk broadcasts.
+- ✅ **Analytics Suite**: Revenue trends, journal performance, and institutional activity dashboards.
+- ✅ **Task Management**: Integrated CRM follow-up system with status tracking and resolution logs.
 
 ## 🛠️ Tech Stack
 
@@ -179,32 +173,15 @@ NODE_ENV="development"
 - `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login
 
-### Coming Soon
+### Analytics & Reporting
+- `GET /api/dashboard/stats` - Global overview metrics
+- `GET /api/dashboard/revenue` - Financial performance time-series
+- `GET /api/institutions/activity` - Institutional engagement tracking
+- `GET /api/dashboard/data-hub` - Data integrity and count checks
 
-- Customer management endpoints
-- Subscription management endpoints
-- Journal catalog endpoints
-- Analytics endpoints
-
-## 🚧 Roadmap
-
-### Phase 1 (Current) ✅
-- User authentication
-- Customer registration
-- Basic dashboard
-- Database schema
-
-### Phase 2 (Next)
-- Subscription management
-- Journal catalog
-- Invoice/Payment system
-- Communication logging
-
-### Phase 3 (Future)
-- Advanced analytics
-- Email automation
-- Agency commission tracking
-- Report generation
+### Data Portability
+- `POST /api/imports/[type]` - Bulk CSV data ingestion
+- `GET /api/exports/[type]` - Secured CSV data extraction
 
 ## 🤝 Contributing
 
