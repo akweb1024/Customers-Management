@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Send, Plus, Eye, CheckCircle } from 'lucide-react';
+import { FileText, Send, Plus, Eye, CheckCircle, Download, Copy } from 'lucide-react';
+import { HR_PRESETS } from '@/lib/hr-presets';
 
 export default function DocumentManager({ employees }: { employees: any[] }) {
     const [templates, setTemplates] = useState<any[]>([]);
@@ -38,6 +39,15 @@ export default function DocumentManager({ employees }: { employees: any[] }) {
         }
     };
 
+    const loadPreset = (preset: any) => {
+        setNewTemplate({
+            title: preset.title,
+            type: preset.type,
+            content: preset.content
+        });
+        setIsCreating(true);
+    };
+
     const issueDocument = async () => {
         if (!selectedTemplate || !selectedEmployee) return;
         const token = localStorage.getItem('token');
@@ -59,11 +69,32 @@ export default function DocumentManager({ employees }: { employees: any[] }) {
                 {/* TEMPLATE MANAGER */}
                 <div className="card-premium p-6">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-bold">Document Templates</h3>
-                        <button onClick={() => setIsCreating(!isCreating)} className="btn btn-sm btn-outline">
-                            {isCreating ? 'Cancel' : '+ New Template'}
+                        <div>
+                            <h3 className="text-xl font-bold">Document Templates</h3>
+                            <p className="text-xs text-secondary-500">Manage formal document structures</p>
+                        </div>
+                        <button onClick={() => setIsCreating(!isCreating)} className="btn btn-sm btn-outline flex items-center gap-2">
+                            {isCreating ? 'Cancel' : <><Plus size={16} /> New Template</>}
                         </button>
                     </div>
+
+                    {!isCreating && templates.length === 0 && (
+                        <div className="mb-6 p-4 bg-primary-50 rounded-xl border border-primary-100">
+                            <h4 className="font-bold text-primary-800 mb-2">🚀 Quick Start</h4>
+                            <p className="text-xs text-primary-600 mb-4">You don&apos;t have any templates yet. Select a standard preset to get started:</p>
+                            <div className="grid grid-cols-2 gap-2">
+                                {HR_PRESETS.map((p, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => loadPreset(p)}
+                                        className="text-left p-2 rounded-lg bg-white border border-primary-200 hover:bg-primary-100 transition-colors text-xs font-bold text-primary-700 flex items-center gap-2"
+                                    >
+                                        <Copy size={12} /> {p.title}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {isCreating ? (
                         <div className="space-y-4 bg-secondary-50 p-4 rounded-xl">
@@ -79,16 +110,30 @@ export default function DocumentManager({ employees }: { employees: any[] }) {
                                 onChange={(e) => setNewTemplate({ ...newTemplate, type: e.target.value })}
                             >
                                 <option value="OFFER_LETTER">Offer Letter</option>
-                                <option value="CONTRACT">Contract / Agreement</option>
-                                <option value="NDA">NDA</option>
-                                <option value="POLICY">Policy Ack</option>
+                                <option value="CONTRACT">Appointment Letter / Contract</option>
+                                <option value="NDA">Non-Disclosure Agreement (NDA)</option>
+                                <option value="RELIEVING_LETTER">Relieving Letter</option>
+                                <option value="NOC">No Objection Certificate (NOC)</option>
+                                <option value="POLICY">Policy Acknowledgement</option>
                             </select>
-                            <textarea
-                                className="input w-full h-40 font-mono text-xs"
-                                placeholder="HTML Content. Use {{name}}, {{role}}, {{salary}}, {{date}}"
-                                value={newTemplate.content}
-                                onChange={(e) => setNewTemplate({ ...newTemplate, content: e.target.value })}
-                            />
+                            <div className="relative">
+                                <span className="absolute right-2 top-2 text-[10px] bg-secondary-200 px-2 py-1 rounded text-secondary-600">HTML Supported</span>
+                                <textarea
+                                    className="input w-full h-40 font-mono text-xs"
+                                    placeholder="HTML Content. Use {{name}}, {{role}}, {{salary}}, {{date}}"
+                                    value={newTemplate.content}
+                                    onChange={(e) => setNewTemplate({ ...newTemplate, content: e.target.value })}
+                                />
+                            </div>
+                            <div className="flex gap-2 text-[10px] text-secondary-400 font-mono flex-wrap">
+                                <span className="p-1 bg-white border rounded">{'{{name}}'}</span>
+                                <span className="p-1 bg-white border rounded">{'{{designation}}'}</span>
+                                <span className="p-1 bg-white border rounded">{'{{salary}}'}</span>
+                                <span className="p-1 bg-white border rounded">{'{{joiningDate}}'}</span>
+                                <span className="p-1 bg-white border rounded">{'{{companyName}}'}</span>
+                                <span className="p-1 bg-white border rounded">{'{{address}}'}</span>
+                                <span className="p-1 bg-white border rounded">{'{{date}}'}</span>
+                            </div>
                             <button onClick={saveTemplate} className="btn btn-primary w-full">Save Template</button>
                         </div>
                     ) : (

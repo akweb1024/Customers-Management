@@ -34,15 +34,20 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Template or Employee not found' }, { status: 404 });
         }
 
+        // Fetch Company Context
+        const company = await prisma.company.findUnique({ where: { id: template.companyId } });
+
         // Prepare Variables
         const vars = {
             name: employee.user.name || employee.user.email.split('@')[0],
             email: employee.user.email,
             designation: employee.designation || 'Specialist',
-            date: new Date().toLocaleDateString(),
-            salary: (employee.baseSalary || 0).toString(),
-            address: employee.address || '',
-            // Add company vars via user's company context if needed
+            date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+            salary: (employee.baseSalary || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' }),
+            address: employee.address || 'Address not provided',
+            joiningDate: employee.dateOfJoining ? new Date(employee.dateOfJoining).toLocaleDateString('en-GB') : 'Date to be decided',
+            companyName: company?.name || 'STM Journal Solutions',
+            companyAddress: company?.address || 'Noida, UP',
         };
 
         const resolvedContent = hydrateTemplate(template.content, vars);
