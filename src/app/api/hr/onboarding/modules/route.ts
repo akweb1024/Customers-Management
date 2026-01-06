@@ -36,6 +36,10 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { title, type, description, content, departmentId, requiredForDesignation, questions, order } = body;
 
+        if (!title || !type || !content) {
+            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
         const userCompanyId = (user as any).companyId;
 
         const module = await prisma.onboardingModule.create({
@@ -45,15 +49,15 @@ export async function POST(req: NextRequest) {
                 type, // COMPANY, ROLE, DEPARTMENT
                 description,
                 content,
-                departmentId,
-                requiredForDesignation,
+                departmentId: departmentId || null, // Handle empty string
+                requiredForDesignation: requiredForDesignation || null, // Handle empty string
                 order: order || 0,
                 questions: {
-                    create: questions.map((q: any) => ({
+                    create: Array.isArray(questions) ? questions.map((q: any) => ({
                         question: q.question,
-                        options: q.options,
-                        correctAnswer: q.correctAnswer
-                    }))
+                        options: q.options, // Ensure this matches String[] 
+                        correctAnswer: parseInt(q.correctAnswer)
+                    })) : []
                 }
             },
             include: { questions: true }
