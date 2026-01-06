@@ -456,13 +456,16 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                 <nav className="p-4 space-y-2 h-full flex flex-col overflow-y-auto custom-scrollbar">
                     <div className="flex-1 space-y-2">
                         {navigationCategories.map((category) => {
-                            const [isExpanded, setIsExpanded] = useState(true);
+                            const isExpanded = !collapsedSections[category.title];
 
                             return (
                                 <div key={category.title} className="space-y-1">
                                     {sidebarOpen && (
                                         <button
-                                            onClick={() => setIsExpanded(!isExpanded)}
+                                            onClick={() => setCollapsedSections(prev => ({
+                                                ...prev,
+                                                [category.title]: !prev[category.title]
+                                            }))}
                                             className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-black text-secondary-400 uppercase tracking-[0.15em] hover:text-secondary-600 transition-colors rounded-lg hover:bg-secondary-50"
                                         >
                                             <span>{category.title}</span>
