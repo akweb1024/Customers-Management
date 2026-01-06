@@ -58,7 +58,7 @@ export function convertToINR(amount: number, currency: string = 'INR', customRat
  * Formats a currency value with its appropriate symbol.
  */
 export function formatCurrency(amount: number, currency: string = 'INR'): string {
-    const config: any = {
+    const config: Intl.NumberFormatOptions = {
         style: 'currency',
         currency: currency.toUpperCase()
     };

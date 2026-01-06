@@ -96,11 +96,11 @@ export async function POST(req: NextRequest) {
 
         // Trace performance against JD/KRA and generate alerts
         let kraMatchRatio = 1.0;
-        if ((profile as any).kra && body.content) {
-            const kraKeywords = (profile as any).kra.toLowerCase().split(/[,\s\n\.]+/).filter((k: any) => k.length > 3);
+        if (profile.kra && body.content) {
+            const kraKeywords = profile.kra.toLowerCase().split(/[,\s\n\.]+/).filter((k: string) => k.length > 3);
             const reportContent = (body.content + ' ' + (body.title || '')).toLowerCase();
 
-            const matchCount = kraKeywords.filter((k: any) => reportContent.includes(k)).length;
+            const matchCount = kraKeywords.filter((k: string) => reportContent.includes(k)).length;
             kraMatchRatio = matchCount / (kraKeywords.length || 1);
 
             if (kraMatchRatio < 0.2 && body.content.length > 50) {
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
                 chatsHandled: parseInt(body.chatsHandled) || 0,
                 followUpsCompleted: parseInt(body.followUpsCompleted) || 0,
                 kraMatchRatio: kraMatchRatio
-            } as any
+            }
         });
 
         return NextResponse.json(report);

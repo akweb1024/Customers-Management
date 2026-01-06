@@ -94,7 +94,7 @@ export async function PATCH(req: NextRequest) {
                 contractUrl: data.contractUrl,
                 jobDescription: data.jobDescription,
                 kra: data.kra
-            } as any
+            }
         });
 
         return NextResponse.json(updated);
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
             // Update existing profile
             profile = await prisma.employeeProfile.update({
                 where: { id: existingProfile.id },
-                data: cleanProfileData as any
+                data: cleanProfileData
             });
         } else {
             // Create new profile
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
                 data: {
                     userId: targetUser.id,
                     ...cleanProfileData
-                } as any
+                }
             });
         }
 
