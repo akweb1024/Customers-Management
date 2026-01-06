@@ -7,6 +7,7 @@ import AchievementSection from '@/components/dashboard/AchievementSection';
 import WorkPlanSection from '@/components/dashboard/WorkPlanSection';
 import OnboardingPortal from '@/components/dashboard/OnboardingPortal';
 import DigitalWallet from '@/components/dashboard/DigitalWallet';
+import EmployeeIDCard from '@/components/dashboard/EmployeeIDCard';
 
 export default function StaffPortalPage() {
     const [user, setUser] = useState<any>(null);
@@ -17,6 +18,7 @@ export default function StaffPortalPage() {
     const [performance, setPerformance] = useState<any[]>([]);
     const [workPlans, setWorkPlans] = useState<any[]>([]);
     const [documents, setDocuments] = useState<any>(null);
+    const [fullProfile, setFullProfile] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
     const [checkingIn, setCheckingIn] = useState(false);
@@ -43,17 +45,19 @@ export default function StaffPortalPage() {
         setLoading(true);
         const token = localStorage.getItem('token');
         try {
-            const [attendanceRes, reportsRes, plansRes, slipsRes, leavesRes, perfRes, docsRes] = await Promise.all([
+            const [attendanceRes, reportsRes, plansRes, slipsRes, leavesRes, perfRes, docsRes, profileRes] = await Promise.all([
                 fetch('/api/hr/attendance', { headers: { 'Authorization': `Bearer ${token}` } }),
                 fetch('/api/hr/work-reports', { headers: { 'Authorization': `Bearer ${token}` } }),
                 fetch('/api/hr/work-plans', { headers: { 'Authorization': `Bearer ${token}` } }),
                 fetch('/api/hr/salary-slips', { headers: { 'Authorization': `Bearer ${token}` } }),
                 fetch('/api/hr/leave-requests', { headers: { 'Authorization': `Bearer ${token}` } }),
                 fetch('/api/hr/performance', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/hr/my-documents', { headers: { 'Authorization': `Bearer ${token}` } })
+                fetch('/api/hr/my-documents', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/hr/profile/me', { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
 
             if (docsRes.ok) setDocuments(await docsRes.json());
+            if (profileRes.ok) setFullProfile(await profileRes.json());
             if (attendanceRes.ok) setAttendance(await attendanceRes.json());
             if (reportsRes.ok) setWorkReports(await reportsRes.json());
             if (plansRes.ok) setWorkPlans(await plansRes.json());
@@ -142,6 +146,7 @@ export default function StaffPortalPage() {
         { id: 'salary', name: 'Salary', icon: '💵' },
         { id: 'documents', name: 'Documents', icon: '📁' },
         { id: 'onboarding', name: 'Onboarding', icon: '🎓' },
+        { id: 'id-card', name: 'ID Card', icon: '🪪' },
     ];
 
     return (
@@ -783,6 +788,8 @@ export default function StaffPortalPage() {
                         </div>
                     )}
                     {activeTab === 'documents' && <DigitalWallet />}
+
+                    {activeTab === 'id-card' && fullProfile && <EmployeeIDCard employee={fullProfile} />}
                 </div>
             </div>
         </DashboardLayout>

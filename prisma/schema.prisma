@@ -801,6 +801,8 @@ model EmployeeProfile {
   phoneNumber      String?
   emergencyContact String?
   address          String?
+  bloodGroup       String?
+  profilePicture   String?
 
   attendance    Attendance[]
   workReports   WorkReport[]
