@@ -10,8 +10,10 @@ export default function DocumentManager({ employees }: { employees: any[] }) {
     const [newTemplate, setNewTemplate] = useState({ title: '', type: 'OFFER_LETTER', content: '' });
 
     // Issuing
+    const [mode, setMode] = useState<'SINGLE' | 'BULK'>('SINGLE');
     const [selectedTemplate, setSelectedTemplate] = useState('');
     const [selectedEmployee, setSelectedEmployee] = useState('');
+    const [bulkTarget, setBulkTarget] = useState('ALL'); // ALL, DEPT (simplified for now)
 
     useEffect(() => {
         fetchTemplates();
@@ -49,17 +51,34 @@ export default function DocumentManager({ employees }: { employees: any[] }) {
     };
 
     const issueDocument = async () => {
-        if (!selectedTemplate || !selectedEmployee) return;
+        if (!selectedTemplate) return;
+        if (mode === 'SINGLE' && !selectedEmployee) return;
+
         const token = localStorage.getItem('token');
-        const res = await fetch('/api/hr/documents/issue', {
+        let endpoint = '/api/hr/documents/issue';
+        let body: any = { templateId: selectedTemplate };
+
+        if (mode === 'SINGLE') {
+            body.employeeId = selectedEmployee;
+        } else {
+            endpoint = '/api/hr/documents/issue-bulk';
+            body.filters = { all: true }; // Simplified for MVP
+            // TODO: If we added Dept selector, we would pass departmentId here
+        }
+
+        const res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ templateId: selectedTemplate, employeeId: selectedEmployee })
+            body: JSON.stringify(body)
         });
+
         if (res.ok) {
-            alert('Document Issued Successfully!');
+            const data = await res.json();
+            alert(mode === 'SINGLE' ? 'Document Issued Successfully!' : `Issued to ${data.total} employees!`);
             setSelectedTemplate('');
             setSelectedEmployee('');
+        } else {
+            alert('Failed to issue document');
         }
     };
 
@@ -155,9 +174,25 @@ export default function DocumentManager({ employees }: { employees: any[] }) {
 
                 {/* ISSUANCE PANEL */}
                 <div className="card-premium p-6 bg-gradient-to-br from-white to-primary-50">
-                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                        <Send size={20} className="text-primary-600" /> Issue Document
-                    </h3>
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-xl font-bold flex items-center gap-2">
+                            <Send size={20} className="text-primary-600" /> Issue Document
+                        </h3>
+                        <div className="flex bg-secondary-100/50 p-1 rounded-lg">
+                            <button
+                                onClick={() => setMode('SINGLE')}
+                                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${mode === 'SINGLE' ? 'bg-white shadow text-primary-600' : 'text-secondary-500'}`}
+                            >
+                                Single
+                            </button>
+                            <button
+                                onClick={() => setMode('BULK')}
+                                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${mode === 'BULK' ? 'bg-white shadow text-primary-600' : 'text-secondary-500'}`}
+                            >
+                                Bulk
+                            </button>
+                        </div>
+                    </div>
 
                     <div className="space-y-6">
                         <div>
@@ -172,17 +207,37 @@ export default function DocumentManager({ employees }: { employees: any[] }) {
                             </select>
                         </div>
 
-                        <div>
-                            <label className="label">Select Employee</label>
-                            <select
-                                className="input w-full bg-white"
-                                value={selectedEmployee}
-                                onChange={(e) => setSelectedEmployee(e.target.value)}
-                            >
-                                <option value="">-- Choose Employee --</option>
-                                {employees.map(e => <option key={e.id} value={e.id}>{e.user.email} ({e.designation})</option>)}
-                            </select>
-                        </div>
+                        {mode === 'SINGLE' ? (
+                            <div>
+                                <label className="label">Select Employee</label>
+                                <select
+                                    className="input w-full bg-white"
+                                    value={selectedEmployee}
+                                    onChange={(e) => setSelectedEmployee(e.target.value)}
+                                >
+                                    <option value="">-- Choose Employee --</option>
+                                    {employees.map(e => <option key={e.id} value={e.id}>{e.user.email} ({e.designation})</option>)}
+                                </select>
+                            </div>
+                        ) : (
+                            <div className="p-4 bg-primary-50 border border-primary-200 rounded-xl">
+                                <label className="label text-primary-800">Target Audience</label>
+                                <div className="flex gap-4 mt-2">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="radio" checked={bulkTarget === 'ALL'} onChange={() => setBulkTarget('ALL')} className="radio radio-primary radio-sm" />
+                                        <span className="text-sm font-bold">All Employees</span>
+                                    </label>
+                                    {/* Placeholder for future Dept filter */}
+                                    {/* <label className="flex items-center gap-2 opacity-50 cursor-not-allowed">
+                                         <input type="radio" disabled className="radio radio-primary radio-sm" />
+                                         <span className="text-sm">By Department (Pro)</span>
+                                     </label> */}
+                                </div>
+                                <p className="text-[10px] mt-2 text-primary-600">
+                                    This will issue the selected document to <strong>{employees.length}</strong> active employees.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="p-4 bg-white/50 rounded-xl text-xs text-secondary-500 border border-primary-100">
                             <p className="font-bold mb-1">ℹ️ What happens next?</p>
@@ -195,7 +250,7 @@ export default function DocumentManager({ employees }: { employees: any[] }) {
 
                         <button
                             onClick={issueDocument}
-                            disabled={!selectedTemplate || !selectedEmployee}
+                            disabled={!selectedTemplate || (mode === 'SINGLE' && !selectedEmployee)}
                             className="btn btn-primary w-full py-3 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Generate & Issue Document
