@@ -584,19 +584,27 @@ export default function RecruitmentDashboard() {
                                                             <option key={c.id} value={c.id}>{c.name}</option>
                                                         ))}
                                                     </select>
-                                                    <p className="text-[10px] text-secondary-400 mt-1">Leave default to use {selectedApp.jobPosting.company?.name || 'recruiting company'}</p>
                                                 </div>
 
                                                 <div>
-                                                    <label className="label text-[10px]">Offer Letter URL (Hosted)</label>
-                                                    <input name="offerLetterUrl" className="input text-sm" placeholder="https://..." />
+                                                    <label className="label text-[10px]">Annual Base Salary (CTC)</label>
+                                                    <input name="baseSalary" type="number" className="input text-sm" placeholder="e.g. 500000" required />
                                                 </div>
-                                                <div>
-                                                    <label className="label text-[10px]">Contract/Agreement URL</label>
-                                                    <input name="contractUrl" className="input text-sm" placeholder="https://..." />
+
+                                                <div className="bg-secondary-900 text-secondary-100 p-4 rounded-xl text-xs space-y-2">
+                                                    <p className="font-bold">⚡ Automated Actions:</p>
+                                                    <ul className="list-disc pl-4 space-y-1">
+                                                        <li>Create Employee Profile & User Account.</li>
+                                                        <li>Generate <strong>Offer Letter</strong> (if template exists).</li>
+                                                        <li>Send <strong>Welcome Email</strong> with login credentials.</li>
+                                                        <li>Enroll in Onboarding Workflow.</li>
+                                                    </ul>
                                                 </div>
+
                                                 <div className="flex gap-2 pt-4">
-                                                    <button type="submit" className="btn btn-primary flex-1 py-4 rounded-xl font-bold">Finalize & Hire</button>
+                                                    <button type="submit" className="btn btn-primary flex-1 py-4 rounded-xl font-bold border-b-4 border-primary-700 active:border-b-0 active:translate-y-1 transition-all">
+                                                        🚀 Finalize & Hire
+                                                    </button>
                                                     <button type="button" onClick={() => setIsOnboarding(false)} className="btn btn-secondary py-4 px-6 rounded-xl font-bold">Cancel</button>
                                                 </div>
                                             </form>
