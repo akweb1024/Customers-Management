@@ -8,6 +8,7 @@ import WorkPlanSection from '@/components/dashboard/WorkPlanSection';
 import OnboardingPortal from '@/components/dashboard/OnboardingPortal';
 import DigitalWallet from '@/components/dashboard/DigitalWallet';
 import EmployeeIDCard from '@/components/dashboard/EmployeeIDCard';
+import { Lock, AlertOctagon } from 'lucide-react';
 
 export default function StaffPortalPage() {
     const [user, setUser] = useState<any>(null);
@@ -19,6 +20,7 @@ export default function StaffPortalPage() {
     const [workPlans, setWorkPlans] = useState<any[]>([]);
     const [documents, setDocuments] = useState<any>(null);
     const [fullProfile, setFullProfile] = useState<any>(null);
+    const [compliance, setCompliance] = useState<any>({ isCompliant: true, pendingDocuments: [], pendingModules: [] });
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
     const [checkingIn, setCheckingIn] = useState(false);
@@ -45,7 +47,7 @@ export default function StaffPortalPage() {
         setLoading(true);
         const token = localStorage.getItem('token');
         try {
-            const [attendanceRes, reportsRes, plansRes, slipsRes, leavesRes, perfRes, docsRes, profileRes] = await Promise.all([
+            const [attendanceRes, reportsRes, plansRes, slipsRes, leavesRes, perfRes, docsRes, profileRes, complRes] = await Promise.all([
                 fetch('/api/hr/attendance', { headers: { 'Authorization': `Bearer ${token}` } }),
                 fetch('/api/hr/work-reports', { headers: { 'Authorization': `Bearer ${token}` } }),
                 fetch('/api/hr/work-plans', { headers: { 'Authorization': `Bearer ${token}` } }),
@@ -53,9 +55,19 @@ export default function StaffPortalPage() {
                 fetch('/api/hr/leave-requests', { headers: { 'Authorization': `Bearer ${token}` } }),
                 fetch('/api/hr/performance', { headers: { 'Authorization': `Bearer ${token}` } }),
                 fetch('/api/hr/my-documents', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/hr/profile/me', { headers: { 'Authorization': `Bearer ${token}` } })
+                fetch('/api/hr/profile/me', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/hr/onboarding/compliance', { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
 
+            if (complRes.ok) {
+                const complData = await complRes.json();
+                setCompliance(complData);
+                // Force redirect to Documents or Onboarding if not compliant
+                if (!complData.isCompliant) {
+                    if (complData.pendingDocuments.length > 0) setActiveTab('documents');
+                    else if (complData.pendingModules.length > 0) setActiveTab('onboarding');
+                }
+            }
             if (docsRes.ok) setDocuments(await docsRes.json());
             if (profileRes.ok) setFullProfile(await profileRes.json());
             if (attendanceRes.ok) setAttendance(await attendanceRes.json());
@@ -209,23 +221,53 @@ export default function StaffPortalPage() {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex gap-2 bg-secondary-100/50 p-2 rounded-2xl w-fit">
-                    {tabs.map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 ${activeTab === tab.id
-                                ? 'bg-white text-primary-600 shadow-md'
-                                : 'text-secondary-500 hover:text-secondary-700'
-                                }`}
-                        >
-                            <span>{tab.icon}</span>
-                            {tab.name}
-                        </button>
-                    ))}
+                <div className="flex flex-wrap gap-2 mb-8 bg-white p-2 rounded-xl shadow-sm border border-secondary-100">
+                    {tabs.map((tab) => {
+                        // Compliance Lock Logic
+                        const isLocked = !compliance.isCompliant &&
+                            tab.id !== 'documents' &&
+                            tab.id !== 'onboarding' &&
+                            tab.id !== 'attendance'; // Allow Check-in
+
+                        return (
+                            <button
+                                key={tab.id}
+                                onClick={() => !isLocked && setActiveTab(tab.id)}
+                                className={`
+                                flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200
+                                ${activeTab === tab.id
+                                        ? 'bg-primary-600 text-white shadow-md transform scale-105'
+                                        : isLocked
+                                            ? 'text-gray-400 cursor-not-allowed bg-gray-50'
+                                            : 'text-secondary-600 hover:bg-secondary-50 hover:text-primary-600'
+                                    }
+                            `}
+                            >
+                                <span>{tab.icon}</span>
+                                {tab.name}
+                                {isLocked && <Lock size={12} className="ml-1" />}
+                            </button>
+                        )
+                    })}
                 </div>
 
-                <div className="min-h-[400px]">
+                {!compliance.isCompliant && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 animate-pulse">
+                        <AlertOctagon className="text-red-600 mt-1 shrink-0" />
+                        <div>
+                            <h3 className="font-bold text-red-800">Action Required: Compliance Pending</h3>
+                            <p className="text-sm text-red-700 mt-1">
+                                You must complete your onboarding tasks to access all portal features.
+                            </p>
+                            <ul className="list-disc pl-5 mt-2 text-xs text-red-700 font-medium">
+                                {compliance.pendingDocuments.length > 0 && <li>Sign {compliance.pendingDocuments.length} pending document(s) in "Documents" tab.</li>}
+                                {compliance.pendingModules.length > 0 && <li>Complete {compliance.pendingModules.length} mandatory onboarding module(s).</li>}
+                            </ul>
+                        </div>
+                    </div>
+                )}
+
+                <div className="bg-white rounded-2xl shadow-sm border border-secondary-100 min-h-[500px] relative">
                     {activeTab === 'onboarding' && <OnboardingPortal />}
 
                     {activeTab === 'overview' && (
