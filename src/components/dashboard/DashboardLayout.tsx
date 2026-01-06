@@ -208,6 +208,13 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                 ]
             },
             {
+                title: 'IT Services',
+                items: [
+                    { name: 'Asset Inventory', href: '/dashboard/it/assets', icon: '💻', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                    { name: 'Service Desk', href: '/dashboard/it/tickets', icon: '🛠️', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                ]
+            },
+            {
                 title: 'Insights & Tools',
                 items: [
                     { name: 'Analytics', href: '/dashboard/analytics', icon: '📈', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },

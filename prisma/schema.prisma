@@ -60,6 +60,8 @@ model Company {
   workPlans          WorkPlan[]
   onboardingModules  OnboardingModule[]
   documentTemplates  DocumentTemplate[]
+  itAssets           ITAsset[]
+  itTickets          ITSupportTicket[]
 
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -154,6 +156,11 @@ model User {
   lessonProgress        UserLessonProgress[]
   reviews               Review[]
   workPlanComments      WorkPlanComment[]
+
+  // IT Management
+  assignedAssets        ITAsset[]
+  itRequests            ITSupportTicket[] @relation("ITRequestor")
+  itResolutions         ITSupportTicket[] @relation("ITResolver")
 
   @@index([email])
   @@index([role])
@@ -1559,4 +1566,65 @@ model UserLessonProgress {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, lessonId])
+}
+
+// ============================================
+// IT DEPARTMENT MANAGEMENT
+// ============================================
+
+model ITAsset {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  name        String
+  type        String   // LAPTOP, DESKTOP, LICENSE, PERIPHERAL, MOBILE, SERVER
+  serialNumber String?
+  purchaseDate DateTime?
+  warrantyExpiry DateTime?
+  status      String   @default("AVAILABLE") // AVAILABLE, ASSIGNED, MAINTENANCE, RETIRED, LOST
+
+  assignedToId String?
+  assignedTo   User?    @relation(fields: [assignedToId], references: [id])
+  
+  details     String?  // JSON or text description
+  value       Float?   // Monetary value
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tickets     ITSupportTicket[]
+
+  @@index([companyId])
+  @@index([assignedToId])
+}
+
+model ITSupportTicket {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  requesterId String
+  requester   User     @relation("ITRequestor", fields: [requesterId], references: [id])
+
+  assignedToId String?
+  assignedTo   User?    @relation("ITResolver", fields: [assignedToId], references: [id])
+
+  assetId     String?
+  asset       ITAsset? @relation(fields: [assetId], references: [id])
+
+  title       String
+  description String
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status      String   @default("OPEN")   // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  category    String?  // HARDWARE, SOFTWARE, NETWORK, ACCESS
+
+  resolution  String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([requesterId])
+  @@index([status])
 }
