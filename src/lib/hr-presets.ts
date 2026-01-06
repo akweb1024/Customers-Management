@@ -162,5 +162,72 @@ export const HR_PRESETS = [
 
 <p>By signing below, I acknowledge that I have read and understood the IT & Data Security Policy and agree to abide by it.</p>
         `
+    },
+    {
+        title: 'Salary Structure Annexure',
+        type: 'CONTRACT',
+        content: `
+<h1>Annexure A: Salary Structure</h1>
+<p><strong>Name:</strong> {{name}}</p>
+<p><strong>Designation:</strong> {{designation}}</p>
+<p><strong>Annual CTC:</strong> {{salary}}</p>
+
+<table border="1" style="width:100%; border-collapse: collapse; text-align: left;">
+    <thead>
+        <tr style="background-color: #f2f2f2;">
+            <th style="padding: 8px;">Component</th>
+            <th style="padding: 8px;">Annual (INR)</th>
+            <th style="padding: 8px;">Monthly (INR)</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="padding: 8px;">Basic Salary</td>
+            <td style="padding: 8px;">40% of CTC</td>
+            <td style="padding: 8px;">-</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;">HRA</td>
+            <td style="padding: 8px;">20% of CTC</td>
+            <td style="padding: 8px;">-</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;">Special Allowance</td>
+            <td style="padding: 8px;">Balancing Figure</td>
+            <td style="padding: 8px;">-</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px;"><strong>Total Gross</strong></td>
+            <td style="padding: 8px;"><strong>{{salary}}</strong></td>
+            <td style="padding: 8px;"><strong>-</strong></td>
+        </tr>
+    </tbody>
+</table>
+<p><em>* Professional Tax and TDS will be deducted as per applicable laws.</em></p>
+        `
+    },
+    {
+        title: 'Detailed Terms & Conditions',
+        type: 'POLICY',
+        content: `
+<h1>Terms and Conditions of Employment</h1>
+
+<h3>1. Working Hours</h3>
+<p>The normal working hours are from 10:00 AM to 7:00 PM, Monday to Saturday. However, you may be required to work additional hours depending on business requirements.</p>
+
+<h3>2. Leaves and Holidays</h3>
+<p>You are entitled to 12 Casual Leaves and 12 Sick Leaves per annum. Public holidays will be as per the company list published every year.</p>
+
+<h3>3. Intellectual Property</h3>
+<p>Any work, invention, or creation made by you during the course of your employment shall be the sole property of {{companyName}}.</p>
+
+<h3>4. Code of Conduct</h3>
+<p>You are expected to maintain high standards of professional conduct. Any form of harassment, discrimination, or dishonesty will lead to disciplinary action, up to termination.</p>
+
+<h3>5. Termination</h3>
+<p>The company reserves the right to terminate your employment with immediate effect in case of misconduct or breach of policy.</p>
+
+<p>I, <strong>{{name}}</strong>, have read and understood the terms above.</p>
+        `
     }
 ];
