@@ -85,11 +85,28 @@ export async function GET(req: NextRequest) {
             customerWhere = { subscriptions: { some: { salesExecutiveId: whereClause.salesExecutiveId } } };
         }
 
-        // 2. Fetch Stats sequentially to avoid overloading the local dev proxy
+        // 2. Fetch Stats with Model-Specific Filters
+
+        // A. Subscriptions (Supports full filtering: Company, Customer, SalesExec, Agency)
         const activeSubscriptionsCount = await prisma.subscription.count({
             where: { ...whereClause, status: 'ACTIVE' },
         });
 
+        // B. Renewals (Supports full filtering)
+        const renewalsCount = await prisma.subscription.count({
+            where: {
+                ...whereClause,
+                endDate: { lte: thirtyDaysFromNow, gte: new Date() },
+                status: 'ACTIVE',
+            },
+        });
+
+        // C. Pending Requests (Supports full filtering)
+        const pendingRequestsCount = await prisma.subscription.count({
+            where: { ...whereClause, status: 'REQUESTED' },
+        });
+
+        // D. Payments (Using revenueWhere which is already safely constructed)
         const paymentsByCurrency = await (prisma.payment as any).groupBy({
             where: revenueWhere,
             by: ['currency'],
@@ -101,45 +118,70 @@ export async function GET(req: NextRequest) {
             return acc + convertToINR(amount, curr.currency || 'INR');
         }, 0);
 
-        const renewalsCount = await prisma.subscription.count({
-            where: {
-                ...whereClause,
-                endDate: { lte: thirtyDaysFromNow, gte: new Date() },
-                status: 'ACTIVE',
-            },
-        });
-
+        // E. Total Customers (Role specific count)
+        // customerWhere is already constructed safely above
         const totalCustomers = role === 'CUSTOMER' ? 1 : await prisma.customerProfile.count({
             where: customerWhere
         });
 
-        const pendingRequestsCount = await prisma.subscription.count({
-            where: { ...whereClause, status: 'REQUESTED' },
-        });
-
+        // F. Open Tickets (Safe, explicit logic)
         const openTicketsCount = await (prisma as any).supportTicket.count({
             where: {
                 companyId: userCompanyId,
                 status: 'OPEN',
-                ...(role === 'CUSTOMER' ? { customerProfileId } : {})
+                ...(customerProfileId ? { customerProfileId } : {})
             }
         });
 
-        // New Module Stats
+        // --- NEW MODULES (Fixing the 500 Error here) ---
+
+        // G. Dispatches
+        // DispatchOrder does NOT have customerProfileId or salesExecutiveId directly
+        let dispatchWhere: any = { status: 'PENDING' };
+        if (userCompanyId) dispatchWhere.companyId = userCompanyId;
+
+        if (customerProfileId) {
+            // Filter by subscription's customer
+            dispatchWhere.subscription = { customerProfileId };
+        } else if (whereClause.salesExecutiveId) {
+            // Filter by subscription's sales exec
+            dispatchWhere.subscription = { salesExecutiveId: whereClause.salesExecutiveId };
+        } else if (whereClause.agencyId) {
+            dispatchWhere.subscription = { agencyId: whereClause.agencyId };
+        }
+
         const pendingDispatches = await (prisma as any).dispatchOrder.count({
-            where: { ...whereClause, status: 'PENDING' }
+            where: dispatchWhere
         });
 
-        const activeCourses = await (prisma as any).course.count({
-            where: { ...whereClause, isPublished: true }
-        });
+        // H. Active Courses
+        let activeCourses = 0;
+        if (role === 'CUSTOMER') {
+            // Count enrollments for this user
+            activeCourses = await (prisma as any).courseEnrollment.count({
+                where: { userId }
+            });
+        } else {
+            // Count published courses in the company
+            activeCourses = await (prisma as any).course.count({
+                where: {
+                    isPublished: true,
+                    ...(userCompanyId ? { companyId: userCompanyId } : {})
+                }
+            });
+        }
 
+        // I. Articles (Global / Journal based - No Company/User Link easily available yet)
         const articlesInReview = await (prisma as any).article.count({
             where: { status: 'UNDER_REVIEW' }
         });
 
+        // J. Events (Company based)
         const upcomingEvents = await (prisma as any).conference.count({
-            where: { ...whereClause, startDate: { gte: new Date() } }
+            where: {
+                startDate: { gte: new Date() },
+                ...(userCompanyId ? { companyId: userCompanyId } : {})
+            }
         });
 
         const recentActivities = await fetchRecentActivities(whereClause, customerProfileId);
