@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 
 export default function HolidayCalendarPage() {
@@ -9,6 +9,7 @@ export default function HolidayCalendarPage() {
     const [userRole, setUserRole] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [form, setForm] = useState({ name: '', date: '', type: 'PUBLIC', description: '' });
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const user = localStorage.getItem('user');
@@ -28,6 +29,79 @@ export default function HolidayCalendarPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleExport = () => {
+        const headers = ['Name', 'Date', 'Type', 'Description'];
+        const csvContent = [
+            headers.join(','),
+            ...holidays.map(h => {
+                const date = new Date(h.date).toISOString().split('T')[0];
+                const cleanDesc = (h.description || '').replace(/"/g, '""').replace(/,/g, ';'); // Simple escape
+                return `"${h.name}","${date}","${h.type}","${cleanDesc}"`;
+            })
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'holidays_export.csv');
+            link.setAttribute('target', '_blank'); // fallback
+            link.click();
+        }
+    };
+
+    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const text = event.target?.result as string;
+            const rows = text.split('\n').map(r => r.trim()).filter(r => r);
+            const dataToImport = [];
+
+            // Skip header if detected
+            let startIdx = 0;
+            if (rows[0].toLowerCase().includes('name') && rows[0].toLowerCase().includes('date')) {
+                startIdx = 1;
+            }
+
+            for (let i = startIdx; i < rows.length; i++) {
+                // Simple CSV parse: assumes quoted strings logic or comma separation
+                // Safe basic parse: split by comma, remove quotes
+                const cols = rows[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+                if (cols.length >= 2) {
+                    dataToImport.push({
+                        name: cols[0],
+                        date: cols[1],
+                        type: cols[2] || 'PUBLIC',
+                        description: cols[3] || ''
+                    });
+                }
+            }
+
+            if (dataToImport.length > 0) {
+                try {
+                    const token = localStorage.getItem('token');
+                    const res = await fetch('/api/hr/holidays', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify(dataToImport)
+                    });
+                    if (res.ok) {
+                        fetchHolidays();
+                    }
+                } catch (err) {
+                    console.error('Import failed', err);
+                }
+            }
+            // Reset input
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        };
+        reader.readAsText(file);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -54,15 +128,30 @@ export default function HolidayCalendarPage() {
     return (
         <DashboardLayout userRole={userRole}>
             <div className="space-y-6 animate-fade-in">
-                <div className="flex justify-between items-end">
+                <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                     <div>
                         <h1 className="text-3xl font-black text-secondary-900 tracking-tighter">Corporate Holiday Almanac</h1>
                         <p className="text-secondary-500 font-medium italic">Official schedule of non-operational periods and company observances.</p>
                     </div>
                     {isAdmin && (
-                        <button onClick={() => setShowModal(true)} className="btn btn-primary px-8 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary-200">
-                            + Proclaim Holiday
-                        </button>
+                        <div className="flex gap-2">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept=".csv"
+                                onChange={handleImport}
+                            />
+                            <button onClick={() => fileInputRef.current?.click()} className="btn bg-secondary-100 text-secondary-700 hover:bg-secondary-200 px-4 rounded-xl font-bold text-xs uppercase tracking-widest">
+                                📤 Import
+                            </button>
+                            <button onClick={handleExport} className="btn bg-secondary-100 text-secondary-700 hover:bg-secondary-200 px-4 rounded-xl font-bold text-xs uppercase tracking-widest">
+                                📥 Export
+                            </button>
+                            <button onClick={() => setShowModal(true)} className="btn btn-primary px-6 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-primary-200">
+                                + Add Holiday
+                            </button>
+                        </div>
                     )}
                 </div>
 
@@ -83,7 +172,7 @@ export default function HolidayCalendarPage() {
                                         <span className="text-2xl font-black text-secondary-900">{new Date(h.date).getDate()}</span>
                                     </div>
                                     <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${h.type === 'PUBLIC' ? 'bg-blue-50 text-blue-600' :
-                                            h.type === 'OPTIONAL' ? 'bg-purple-50 text-purple-600' : 'bg-pink-50 text-pink-600'
+                                        h.type === 'OPTIONAL' ? 'bg-purple-50 text-purple-600' : 'bg-pink-50 text-pink-600'
                                         }`}>
                                         {h.type}
                                     </span>

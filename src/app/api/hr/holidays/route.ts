@@ -34,6 +34,24 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
+
+        if (Array.isArray(body)) {
+            // Bulk Create
+            const holidaysData = body.map((h: any) => ({
+                name: h.name,
+                date: new Date(h.date),
+                type: h.type || 'PUBLIC',
+                description: h.description,
+                companyId: (user as any).companyId
+            }));
+
+            const result = await prisma.holiday.createMany({
+                data: holidaysData
+            });
+
+            return NextResponse.json({ count: result.count, message: 'Bulk import successful' });
+        }
+
         const { name, date, type, description } = body;
 
         const holiday = await prisma.holiday.create({
