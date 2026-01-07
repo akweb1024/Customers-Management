@@ -49,27 +49,70 @@ export async function GET(req: NextRequest) {
             return NextResponse.json(institution);
         }
 
-        // List all institutions with basic stats
+        // List all institutions with pagination and basic stats
+        const page = parseInt(searchParams.get('page') || '1');
+        const limit = parseInt(searchParams.get('limit') || '10');
+        const search = searchParams.get('search') || '';
+        const type = searchParams.get('type');
+        const state = searchParams.get('state');
+        const city = searchParams.get('city');
+        const assignedTo = searchParams.get('assignedTo');
+        const skip = (page - 1) * limit;
+
         const where: any = {};
         if (user.role !== 'SUPER_ADMIN') {
             where.companyId = user.companyId;
         }
 
-        const institutions = await prisma.institution.findMany({
-            where,
-            include: {
-                _count: {
-                    select: {
-                        customers: true,
-                        subscriptions: true,
-                        communications: true
-                    }
-                }
-            },
-            orderBy: { name: 'asc' }
-        });
+        if (type && type !== 'ALL') where.type = type;
+        if (state) where.state = { contains: state, mode: 'insensitive' };
+        if (city) where.city = { contains: city, mode: 'insensitive' };
+        if (assignedTo) where.assignedToUserId = assignedTo;
 
-        return NextResponse.json(institutions);
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { code: { contains: search, mode: 'insensitive' } },
+                { city: { contains: search, mode: 'insensitive' } },
+                { primaryEmail: { contains: search, mode: 'insensitive' } }
+            ];
+        }
+
+        const [institutions, total] = await Promise.all([
+            prisma.institution.findMany({
+                where,
+                skip,
+                take: limit,
+                include: {
+                    assignedTo: {
+                        select: {
+                            id: true,
+                            email: true,
+                            customerProfile: { select: { name: true } }
+                        }
+                    },
+                    _count: {
+                        select: {
+                            customers: true,
+                            subscriptions: true,
+                            communications: true
+                        }
+                    }
+                },
+                orderBy: { name: 'asc' }
+            }),
+            prisma.institution.count({ where })
+        ]);
+
+        return NextResponse.json({
+            data: institutions,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
     } catch (error: any) {
         console.error('Institutions API Error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -107,7 +150,8 @@ export async function POST(req: NextRequest) {
             libraryBudget,
             ipRange,
             notes,
-            logo
+            logo,
+            assignedToUserId
         } = body;
 
         const institution = await prisma.institution.create({
@@ -135,6 +179,7 @@ export async function POST(req: NextRequest) {
                 ipRange,
                 notes,
                 logo,
+                assignedToUserId, // Add ownership
                 companyId: user.companyId
             }
         });

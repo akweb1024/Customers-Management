@@ -13,6 +13,13 @@ export default function UsersPage() {
     const [userRole, setUserRole] = useState('CUSTOMER');
     const [showNewModal, setShowNewModal] = useState(false);
     const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [pagination, setPagination] = useState({
+        page: 1,
+        limit: 10,
+        total: 0,
+        totalPages: 1
+    });
     const [actionLoading, setActionLoading] = useState(false);
 
     useEffect(() => {
@@ -24,19 +31,30 @@ export default function UsersPage() {
                 fetchCompanies();
             }
         }
-        fetchUsers();
     }, []);
 
-    const fetchUsers = async () => {
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchUsers(pagination.page);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchTerm, pagination.page]);
+
+    const fetchUsers = async (page = 1) => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('/api/users', {
+            const res = await fetch(`/api/users?page=${page}&limit=${pagination.limit}&search=${encodeURIComponent(searchTerm)}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
                 const data = await res.json();
-                setUsers(data);
+                if (data.pagination) {
+                    setUsers(data.data);
+                    setPagination(data.pagination);
+                } else {
+                    setUsers(data);
+                }
             }
         } catch (err) {
             console.error(err);
@@ -258,6 +276,23 @@ export default function UsersPage() {
                     </div>
                 </div>
 
+                {/* Search Bar */}
+                <div className="card-premium p-4">
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary-400">🔍</span>
+                        <input
+                            type="text"
+                            placeholder="Search users by email or role..."
+                            className="input pl-10 w-full"
+                            value={searchTerm}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value);
+                                setPagination(prev => ({ ...prev, page: 1 })); // Reset to page 1 on search
+                            }}
+                        />
+                    </div>
+                </div>
+
                 <div className="card-premium overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="table">
@@ -343,6 +378,31 @@ export default function UsersPage() {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Pagination Controls */}
+                    {!loading && users.length > 0 && (
+                        <div className="px-6 py-4 bg-secondary-50 border-t border-secondary-100 flex items-center justify-between">
+                            <div className="text-sm text-secondary-500">
+                                Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of <span className="font-medium">{pagination.total}</span> users
+                            </div>
+                            <div className="flex space-x-2">
+                                <button
+                                    className="px-3 py-1 bg-white border border-secondary-200 rounded-md text-sm disabled:opacity-50 hover:bg-secondary-50"
+                                    disabled={pagination.page === 1}
+                                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    className="px-3 py-1 bg-white border border-secondary-200 rounded-md text-sm disabled:opacity-50 hover:bg-secondary-50"
+                                    disabled={pagination.page === pagination.totalPages}
+                                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

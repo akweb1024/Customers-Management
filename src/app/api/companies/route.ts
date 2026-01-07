@@ -13,16 +13,34 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        const companies = await prisma.company.findMany({
-            orderBy: { createdAt: 'desc' },
-            include: {
-                _count: {
-                    select: { users: true }
+        const { searchParams } = new URL(req.url);
+        const page = parseInt(searchParams.get('page') || '1');
+        const limit = parseInt(searchParams.get('limit') || '12'); // 12 fits 3-column grid better
+        const skip = (page - 1) * limit;
+
+        const [companies, total] = await Promise.all([
+            prisma.company.findMany({
+                skip,
+                take: limit,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    _count: {
+                        select: { users: true }
+                    }
                 }
+            }),
+            prisma.company.count()
+        ]);
+
+        return NextResponse.json({
+            data: companies,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit)
             }
         });
-
-        return NextResponse.json(companies);
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }

@@ -12,6 +12,12 @@ export default function TicketsPage() {
     const [userRole, setUserRole] = useState('');
     const [user, setUser] = useState<any>(null);
     const [statusFilter, setStatusFilter] = useState('');
+    const [pagination, setPagination] = useState({
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 1
+    });
     const router = useRouter();
 
     useEffect(() => {
@@ -22,13 +28,13 @@ export default function TicketsPage() {
             setUserRole(u.role);
             fetchTickets();
         }
-    }, [statusFilter]);
+    }, [statusFilter, pagination.page]);
 
     const fetchTickets = async () => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const url = `/api/support/tickets${statusFilter ? `?status=${statusFilter}` : ''}`;
+            const url = `/api/support/tickets?page=${pagination.page}&limit=${pagination.limit}${statusFilter ? `&status=${statusFilter}` : ''}`;
             const res = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -36,6 +42,7 @@ export default function TicketsPage() {
                 const data = await res.json();
                 setTickets(data.tickets || []);
                 setStats(data.stats || {});
+                if (data.pagination) setPagination(data.pagination);
             }
         } catch (err) {
             console.error('Fetch tickets error:', err);
@@ -185,6 +192,31 @@ export default function TicketsPage() {
                                 </div>
                             );
                         })}
+                    </div>
+                )}
+
+                {/* Pagination Controls */}
+                {!loading && tickets.length > 0 && (
+                    <div className="px-6 py-4 bg-white rounded-2xl shadow-sm border border-secondary-100 flex items-center justify-between">
+                        <div className="text-sm text-secondary-500">
+                            Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of <span className="font-medium">{pagination.total}</span> tickets
+                        </div>
+                        <div className="flex space-x-2">
+                            <button
+                                className="px-3 py-1 bg-white border border-secondary-200 rounded-md text-sm disabled:opacity-50 hover:bg-secondary-50 transition-colors"
+                                disabled={pagination.page === 1}
+                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                            >
+                                Previous
+                            </button>
+                            <button
+                                className="px-3 py-1 bg-white border border-secondary-200 rounded-md text-sm disabled:opacity-50 hover:bg-secondary-50 transition-colors"
+                                disabled={pagination.page === pagination.totalPages}
+                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                            >
+                                Next
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

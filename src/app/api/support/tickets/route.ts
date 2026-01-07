@@ -116,9 +116,15 @@ export async function GET(req: NextRequest) {
             where.status = status;
         }
 
-        const [tickets, stats] = await Promise.all([
+        const page = parseInt(searchParams.get('page') || '1');
+        const limit = parseInt(searchParams.get('limit') || '20');
+        const skip = (page - 1) * limit;
+
+        const [tickets, total, stats] = await Promise.all([
             (prisma as any).supportTicket.findMany({
                 where,
+                skip,
+                take: limit,
                 include: {
                     customerProfile: {
                         select: { id: true, name: true, primaryEmail: true }
@@ -132,6 +138,7 @@ export async function GET(req: NextRequest) {
                 },
                 orderBy: { updatedAt: 'desc' }
             }),
+            (prisma as any).supportTicket.count({ where }),
             (prisma as any).supportTicket.groupBy({
                 by: ['status'],
                 where: { companyId: where.companyId },
@@ -141,7 +148,13 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({
             tickets,
-            stats: stats.reduce((acc: any, curr: any) => ({ ...acc, [curr.status]: curr._count.id }), {})
+            stats: stats.reduce((acc: any, curr: any) => ({ ...acc, [curr.status]: curr._count.id }), {}),
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            }
         });
     } catch (error: any) {
         console.error('Support Tickets GET Error:', error);

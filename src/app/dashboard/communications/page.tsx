@@ -9,6 +9,12 @@ export default function CommunicationsPage() {
     const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [userRole, setUserRole] = useState('CUSTOMER');
+    const [pagination, setPagination] = useState({
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 1
+    });
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -19,16 +25,21 @@ export default function CommunicationsPage() {
         fetchLogs();
     }, []);
 
-    const fetchLogs = async () => {
+    const fetchLogs = async (page = 1) => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('/api/communications', {
+            const res = await fetch(`/api/communications?page=${page}&limit=${pagination.limit}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
                 const data = await res.json();
-                setLogs(data.data);
+                if (data.pagination) {
+                    setLogs(data.data);
+                    setPagination(data.pagination);
+                } else {
+                    setLogs(data.data || data);
+                }
             }
         } catch (err) {
             console.error(err);
@@ -90,7 +101,11 @@ export default function CommunicationsPage() {
                                                     >
                                                         {log.customerProfile.name}
                                                     </Link>
-                                                    {log.customerProfile.organizationName && (
+                                                    {log.customerProfile.institution ? (
+                                                        <Link href={`/dashboard/institutions/${log.customerProfile.institution.id}`} className="text-xs text-secondary-500 hover:text-primary-600">
+                                                            ({log.customerProfile.institution.name})
+                                                        </Link>
+                                                    ) : log.customerProfile.organizationName && (
                                                         <span className="text-xs text-secondary-400">({log.customerProfile.organizationName})</span>
                                                     )}
                                                 </div>
@@ -152,6 +167,31 @@ export default function CommunicationsPage() {
                             ))
                         )}
                     </div>
+
+                    {/* Pagination Controls */}
+                    {!loading && logs.length > 0 && (
+                        <div className="px-6 py-4 bg-secondary-50 border-t border-secondary-100 flex items-center justify-between">
+                            <div className="text-sm text-secondary-500">
+                                Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of <span className="font-medium">{pagination.total}</span> logs
+                            </div>
+                            <div className="flex space-x-2">
+                                <button
+                                    className="px-3 py-1 bg-white border border-secondary-200 rounded-md text-sm disabled:opacity-50 hover:bg-secondary-50"
+                                    disabled={pagination.page === 1}
+                                    onClick={() => fetchLogs(pagination.page - 1)}
+                                >
+                                    Previous
+                                </button>
+                                <button
+                                    className="px-3 py-1 bg-white border border-secondary-200 rounded-md text-sm disabled:opacity-50 hover:bg-secondary-50"
+                                    disabled={pagination.page === pagination.totalPages}
+                                    onClick={() => fetchLogs(pagination.page + 1)}
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </DashboardLayout>

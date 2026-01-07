@@ -12,6 +12,10 @@ export async function GET(req: NextRequest) {
 
         const { searchParams } = new URL(req.url);
         const companyId = searchParams.get('companyId');
+        const page = parseInt(searchParams.get('page') || '1');
+        const limit = parseInt(searchParams.get('limit') || '20');
+        const search = searchParams.get('search') || '';
+        const skip = (page - 1) * limit;
 
         const where: any = {};
         if (decoded.role === 'MANAGER') {
@@ -22,25 +26,37 @@ export async function GET(req: NextRequest) {
             where.companyId = companyId;
         }
 
-        const users = await prisma.user.findMany({
-            where,
-            orderBy: { createdAt: 'desc' },
-            include: {
-                manager: {
-                    select: {
-                        id: true,
-                        email: true,
-                        role: true
-                    }
-                },
-                _count: {
-                    select: {
-                        assignedSubscriptions: true,
-                        tasks: true
+        if (search) {
+            where.OR = [
+                { email: { contains: search, mode: 'insensitive' } },
+                { role: { contains: search, mode: 'insensitive' } }
+            ];
+        }
+
+        const [users, total] = await Promise.all([
+            prisma.user.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    manager: {
+                        select: {
+                            id: true,
+                            email: true,
+                            role: true
+                        }
+                    },
+                    _count: {
+                        select: {
+                            assignedSubscriptions: true,
+                            tasks: true
+                        }
                     }
                 }
-            }
-        });
+            }),
+            prisma.user.count({ where })
+        ]);
 
         // Don't send passwords
         const safeUsers = users.map((user: any) => {
@@ -48,7 +64,15 @@ export async function GET(req: NextRequest) {
             return safeUser;
         });
 
-        return NextResponse.json(safeUsers);
+        return NextResponse.json({
+            data: safeUsers,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
 
     } catch (error: any) {
         console.error('Fetch Users Error:', error);

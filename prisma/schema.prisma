@@ -63,6 +63,7 @@ model Company {
   itAssets           ITAsset[]
   itTickets          ITSupportTicket[]
   institutions       Institution[]
+  designations       Designation[]
 
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -144,6 +145,7 @@ model User {
   customerProfile       CustomerProfile?
   assignedSubscriptions Subscription[]       @relation("AssignedSalesExecutive")
   assignedCustomers     CustomerProfile[]    @relation("AssignedCustomers")
+  assignedInstitutions  Institution[]        @relation("InstitutionOwner")
   assignedToCustomers   CustomerProfile[]    @relation("CustomerToExecutives")
   communications        CommunicationLog[]   @relation("UserCommunications")
   auditLogs             AuditLog[]
@@ -165,6 +167,7 @@ model User {
 
   // Customer Assignments
   customerAssignments   CustomerAssignment[] @relation("EmployeeAssignments")
+  authoredComments      EmployeeComment[]
 
   @@index([email])
   @@index([role])
@@ -367,6 +370,12 @@ model Institution {
   
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
+  
+  // Ownership / Assignment
+  assignedToUserId String?
+  assignedTo       User?   @relation("InstitutionOwner", fields: [assignedToUserId], references: [id])
+
+  domain String? // Subject domain (e.g. Engineering, Medical)
   
   // Relations
   customers      CustomerProfile[]
@@ -919,6 +928,32 @@ model SystemSettings {
 // HR & WORK MANAGEMENT
 // ============================================
 
+model Designation {
+  id             String  @id @default(uuid())
+  companyId      String
+  name           String
+  code           String? // e.g., "SE-1"
+  jobDescription String? @db.Text
+  kra            String? @db.Text
+  
+  // Decision Metrics
+  expectedExperience Float @default(0) // Minimum years of experience for this role
+  promotionWaitPeriod Int   @default(12) // Minimum months before next promotion review
+  incrementGuidelines String? @db.Text // Policy for increments in this role
+  
+  // Hierarchy
+  level Int @default(1) // To help decide senior/junior roles
+  
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employeeProfiles EmployeeProfile[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
 model EmployeeProfile {
   id     String @id @default(uuid())
   userId String @unique
@@ -934,12 +969,25 @@ model EmployeeProfile {
   bankName      String?
   accountNumber String?
   ifscCode      String?
-  panNumber     String?
+  // Statutory Info
+  panNumber         String?
+  aadharNumber      String?
+  uanNumber         String?
+  pfNumber          String?
+  esicNumber        String?
 
+  // Contact Info
   personalEmail    String?
-  phoneNumber      String?
+  officialEmail    String? // Alternate official email
+  phoneNumber      String? // Personal Mobile
+  officePhone      String? // Office Mobile/Extension
+  
   emergencyContact String?
-  address          String?
+  
+  // Addresses
+  address          String? // Current Address
+  permanentAddress String?
+  
   bloodGroup       String?
   profilePicture   String?
 
@@ -957,12 +1005,79 @@ model EmployeeProfile {
   jobDescription String?
   kra            String? // Key Responsibility Areas (comma separated or multiline)
 
+  // Designation Upgrade
+  designationId String?
+  designatRef   Designation? @relation(fields: [designationId], references: [id])
+
+  // Experience Tracking
+  totalExperienceYears      Int @default(0)
+  totalExperienceMonths     Int @default(0)
+  relevantExperienceYears   Int @default(0)
+  relevantExperienceMonths  Int @default(0)
+  qualification             String?
+  
+  // JSON Details for rich history
+  educationDetails  Json? // Array of { degree, institute, year, score }
+  experienceDetails Json? // Array of { company, designation, from, to, description }
+  
+  // Growth Tracking
+  grade              String?
+  lastPromotionDate  DateTime?
+  lastIncrementDate  DateTime?
+  nextReviewDate     DateTime?
+  lastIncrementPercentage Float?
+  
   workPlans WorkPlan[]
   onboardingProgress OnboardingProgress[]
   digitalDocuments   DigitalDocument[]
+  
+  // HR History
+  incrementHistory  SalaryIncrementRecord[]
+  hrComments        EmployeeComment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model SalaryIncrementRecord {
+  id                String   @id @default(uuid())
+  employeeProfileId String
+  employeeProfile   EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  
+  date              DateTime @default(now())
+  effectiveDate     DateTime @default(now())
+  
+  oldSalary         Float
+  newSalary         Float
+  incrementAmount   Float
+  percentage        Float
+  
+  type              String   @default("INCREMENT") // INCREMENT, PROMOTION, APPRAISAL, CORRECTION, DECREMENT
+  
+  previousDesignation String?
+  newDesignation      String?
+  
+  reason            String? 
+  approvedByUserId  String? // ID of the manager/admin who approved
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt // Added updatedAt
+}
+
+model EmployeeComment {
+  id                String   @id @default(uuid())
+  employeeProfileId String
+  employeeProfile   EmployeeProfile @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  
+  authorId          String
+  author            User     @relation(fields: [authorId], references: [id])
+  
+  content           String
+  type              String   @default("GENERAL") // GENERAL, PERFORMANCE, DISCIPLINARY, APPRECIATION, NOTE
+  isVisibleToEmployee Boolean @default(false)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt // Added updatedAt
 }
 
 model EmployeeDocument {

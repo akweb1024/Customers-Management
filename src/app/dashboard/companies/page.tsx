@@ -12,6 +12,12 @@ export default function CompaniesPage() {
     const [userRole, setUserRole] = useState('CUSTOMER');
     const [showNewModal, setShowNewModal] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
+    const [pagination, setPagination] = useState({
+        page: 1,
+        limit: 12,
+        total: 0,
+        totalPages: 1
+    });
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -22,16 +28,21 @@ export default function CompaniesPage() {
         fetchCompanies();
     }, []);
 
-    const fetchCompanies = async () => {
+    const fetchCompanies = async (page = 1) => {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('/api/companies', {
+            const res = await fetch(`/api/companies?page=${page}&limit=${pagination.limit}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
                 const data = await res.json();
-                setCompanies(data);
+                if (data.pagination) {
+                    setCompanies(data.data);
+                    setPagination(data.pagination);
+                } else {
+                    setCompanies(data);
+                }
             }
         } catch (err) {
             console.error('Failed to fetch companies', err);
@@ -142,6 +153,31 @@ export default function CompaniesPage() {
                         </div>
                     )}
                 </div>
+
+                {/* Pagination Controls */}
+                {!loading && companies.length > 0 && (
+                    <div className="flex justify-between items-center mt-8">
+                        <div className="text-sm text-secondary-500">
+                            Showing page <span className="font-bold">{pagination.page}</span> of <span className="font-bold">{pagination.totalPages}</span> ({pagination.total} total)
+                        </div>
+                        <div className="flex space-x-2">
+                            <button
+                                className="px-4 py-2 bg-white border border-secondary-200 rounded-lg text-sm font-medium hover:bg-secondary-50 disabled:opacity-50 transition-colors"
+                                disabled={pagination.page === 1}
+                                onClick={() => fetchCompanies(pagination.page - 1)}
+                            >
+                                Previous
+                            </button>
+                            <button
+                                className="px-4 py-2 bg-white border border-secondary-200 rounded-lg text-sm font-medium hover:bg-secondary-50 disabled:opacity-50 transition-colors"
+                                disabled={pagination.page === pagination.totalPages}
+                                onClick={() => fetchCompanies(pagination.page + 1)}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* New Company Modal */}

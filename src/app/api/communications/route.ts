@@ -134,7 +134,12 @@ export async function GET(req: NextRequest) {
                 orderBy: { date: 'desc' },
                 include: {
                     customerProfile: {
-                        select: { name: true, organizationName: true, customerType: true }
+                        select: {
+                            name: true,
+                            organizationName: true,
+                            customerType: true,
+                            institution: { select: { id: true, name: true, code: true } }
+                        }
                     },
                     user: {
                         select: { id: true, email: true, role: true }

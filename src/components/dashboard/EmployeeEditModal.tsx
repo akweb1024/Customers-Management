@@ -33,7 +33,27 @@ export default function EmployeeEditModal({ employee, isOpen, onClose, onSave }:
         offerLetterUrl: employee?.offerLetterUrl || '',
         contractUrl: employee?.contractUrl || '',
         jobDescription: employee?.jobDescription || '',
-        kra: employee?.kra || ''
+        kra: employee?.kra || '',
+        totalExperienceYears: employee?.totalExperienceYears || 0,
+        totalExperienceMonths: employee?.totalExperienceMonths || 0,
+        relevantExperienceYears: employee?.relevantExperienceYears || 0,
+        relevantExperienceMonths: employee?.relevantExperienceMonths || 0,
+        grade: employee?.grade || '',
+        lastPromotionDate: employee?.lastPromotionDate?.split('T')[0] || '',
+        lastIncrementDate: employee?.lastIncrementDate?.split('T')[0] || '',
+        nextReviewDate: employee?.nextReviewDate?.split('T')[0] || '',
+        lastIncrementPercentage: employee?.lastIncrementPercentage || '',
+        designationId: employee?.designationId || '',
+        qualification: employee?.qualification || ''
+    });
+
+    const [designations, setDesignations] = useState<any[]>([]);
+
+    useState(() => {
+        fetch('/api/hr/designations')
+            .then(res => res.json())
+            .then(data => setDesignations(Array.isArray(data) ? data : []))
+            .catch(err => console.error('Error fetching designations:', err));
     });
 
     const [saving, setSaving] = useState(false);
@@ -169,13 +189,26 @@ export default function EmployeeEditModal({ employee, isOpen, onClose, onSave }:
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="label">Designation</label>
-                                    <input
-                                        type="text"
+                                    <select
                                         className="input"
-                                        value={formData.designation}
-                                        onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-                                        placeholder="Senior Developer"
-                                    />
+                                        value={formData.designationId}
+                                        onChange={(e) => {
+                                            const desId = e.target.value;
+                                            const selected = designations.find(d => d.id === desId);
+                                            setFormData({
+                                                ...formData,
+                                                designationId: desId,
+                                                designation: selected?.name || formData.designation,
+                                                jobDescription: selected?.jobDescription || formData.jobDescription,
+                                                kra: selected?.kra || formData.kra
+                                            });
+                                        }}
+                                    >
+                                        <option value="">Select Designation</option>
+                                        {designations.map(d => (
+                                            <option key={d.id} value={d.id}>{d.name} {d.code ? `(${d.code})` : ''}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="label">Department</label>
@@ -204,6 +237,119 @@ export default function EmployeeEditModal({ employee, isOpen, onClose, onSave }:
                                         value={formData.baseSalary}
                                         onChange={(e) => setFormData({ ...formData, baseSalary: e.target.value })}
                                         placeholder="50000"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="label">Grade / Level</label>
+                                    <input
+                                        type="text"
+                                        className="input"
+                                        value={formData.grade}
+                                        onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
+                                        placeholder="L1, Senior, etc."
+                                    />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="label">Qualification</label>
+                                    <input
+                                        type="text"
+                                        className="input"
+                                        value={formData.qualification}
+                                        onChange={(e) => setFormData({ ...formData, qualification: e.target.value })}
+                                        placeholder="B.Tech, MBA, etc."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Experience & Growth */}
+                        <div>
+                            <h3 className="text-lg font-black text-secondary-900 mb-4 pb-2 border-b">Experience & Growth Tracker</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-4 p-4 bg-secondary-50 rounded-2xl">
+                                    <h4 className="font-bold text-secondary-700 text-sm uppercase">Total Experience</h4>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] uppercase font-bold text-secondary-400">Years</label>
+                                            <input
+                                                type="number"
+                                                className="input"
+                                                value={formData.totalExperienceYears}
+                                                onChange={(e) => setFormData({ ...formData, totalExperienceYears: parseInt(e.target.value) || 0 })}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] uppercase font-bold text-secondary-400">Months</label>
+                                            <input
+                                                type="number"
+                                                className="input"
+                                                value={formData.totalExperienceMonths}
+                                                onChange={(e) => setFormData({ ...formData, totalExperienceMonths: parseInt(e.target.value) || 0 })}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 p-4 bg-primary-50 rounded-2xl">
+                                    <h4 className="font-bold text-primary-700 text-sm uppercase">Relevant Experience</h4>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[10px] uppercase font-bold text-primary-400">Years</label>
+                                            <input
+                                                type="number"
+                                                className="input border-primary-100 focus:ring-primary-100"
+                                                value={formData.relevantExperienceYears}
+                                                onChange={(e) => setFormData({ ...formData, relevantExperienceYears: parseInt(e.target.value) || 0 })}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] uppercase font-bold text-primary-400">Months</label>
+                                            <input
+                                                type="number"
+                                                className="input border-primary-100 focus:ring-primary-100"
+                                                value={formData.relevantExperienceMonths}
+                                                onChange={(e) => setFormData({ ...formData, relevantExperienceMonths: parseInt(e.target.value) || 0 })}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="label">Last Promotion Date</label>
+                                    <input
+                                        type="date"
+                                        className="input"
+                                        value={formData.lastPromotionDate}
+                                        onChange={(e) => setFormData({ ...formData, lastPromotionDate: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="label">Last Increment Date</label>
+                                    <input
+                                        type="date"
+                                        className="input"
+                                        value={formData.lastIncrementDate}
+                                        onChange={(e) => setFormData({ ...formData, lastIncrementDate: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="label">Last Increment (%)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        className="input"
+                                        value={formData.lastIncrementPercentage}
+                                        onChange={(e) => setFormData({ ...formData, lastIncrementPercentage: parseFloat(e.target.value) || 0 })}
+                                        placeholder="10.5"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="label">Next Performance Review</label>
+                                    <input
+                                        type="date"
+                                        className="input border-warning-200"
+                                        value={formData.nextReviewDate}
+                                        onChange={(e) => setFormData({ ...formData, nextReviewDate: e.target.value })}
                                     />
                                 </div>
                             </div>

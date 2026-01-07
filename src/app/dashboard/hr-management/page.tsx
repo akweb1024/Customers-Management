@@ -5,6 +5,7 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import FormattedDate from '@/components/common/FormattedDate';
 import OnboardingManager from '@/components/dashboard/OnboardingManager';
 import DocumentManager from '@/components/dashboard/DocumentManager';
+import { Briefcase, Info, Target, TrendingUp, Award, GraduationCap } from 'lucide-react';
 
 const FormattedTime = ({ date }: { date: string | Date | null }) => {
     if (!date) return <span>--:--</span>;
@@ -50,8 +51,44 @@ export default function HRManagementPage() {
         offerLetterUrl: '',
         contractUrl: '',
         jobDescription: '',
-        kra: ''
+        kra: '',
+        totalExperienceYears: 0,
+        totalExperienceMonths: 0,
+        relevantExperienceYears: 0,
+        relevantExperienceMonths: 0,
+        qualification: '',
+        grade: '',
+        lastPromotionDate: '',
+        lastIncrementDate: '',
+        nextReviewDate: '',
+        lastIncrementPercentage: 0,
+        designationId: '',
+
+        // New Fields
+        phoneNumber: '',
+        officePhone: '',
+        personalEmail: '',
+        emergencyContact: '',
+
+        address: '',
+        permanentAddress: '',
+
+        aadharNumber: '',
+        uanNumber: '',
+        pfNumber: '',
+        esicNumber: '',
+        ifscCode: '',
+        bloodGroup: '',
     });
+
+    const [designations, setDesignations] = useState<any[]>([]);
+
+    useEffect(() => {
+        fetch('/api/hr/designations')
+            .then(res => res.json())
+            .then(data => setDesignations(Array.isArray(data) ? data : []))
+            .catch(err => console.error('Error fetching designations:', err));
+    }, []);
 
     // Attendance correction
     const [showAttendanceModal, setShowAttendanceModal] = useState(false);
@@ -490,9 +527,37 @@ export default function HRManagementPage() {
                     </div>
                     <div className="flex gap-4">
                         <button
+                            onClick={() => window.location.href = '/dashboard/hr-management/designations'}
+                            className="btn btn-secondary shadow-xl flex items-center gap-2"
+                        >
+                            <Briefcase size={18} />
+                            Designation Master
+                        </button>
+                        <button
                             onClick={() => {
                                 setSelectedEmp(null);
-                                setEmpForm({ email: '', password: '', role: 'SALES_EXECUTIVE', designation: '', baseSalary: '', bankName: '', accountNumber: '', panNumber: '', offerLetterUrl: '', contractUrl: '', jobDescription: '', kra: '' });
+                                setEmpForm({
+                                    email: '', password: '', role: 'SALES_EXECUTIVE', designation: '',
+                                    baseSalary: '', bankName: '', accountNumber: '', panNumber: '',
+                                    offerLetterUrl: '', contractUrl: '', jobDescription: '', kra: '',
+                                    totalExperienceYears: 0, totalExperienceMonths: 0,
+                                    relevantExperienceYears: 0, relevantExperienceMonths: 0,
+                                    qualification: '', grade: '', lastPromotionDate: '',
+                                    lastIncrementDate: '', nextReviewDate: '', lastIncrementPercentage: 0,
+                                    designationId: '',
+                                    phoneNumber: '',
+                                    officePhone: '',
+                                    personalEmail: '',
+                                    emergencyContact: '',
+                                    address: '',
+                                    permanentAddress: '',
+                                    bloodGroup: '',
+                                    aadharNumber: '',
+                                    uanNumber: '',
+                                    pfNumber: '',
+                                    esicNumber: '',
+                                    ifscCode: '',
+                                });
                                 setShowEmpModal(true);
                             }}
                             className="btn btn-primary shadow-xl"
@@ -552,12 +617,12 @@ export default function HRManagementPage() {
                                 ) : employees.map(emp => (
                                     <tr key={emp.id} className="hover:bg-secondary-50/50 transition-colors group">
                                         <td className="py-4">
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.location.href = `/dashboard/hr-management/employees/${emp.id}`}>
                                                 <div className="w-10 h-10 bg-gradient-to-br from-secondary-100 to-secondary-200 rounded-xl flex items-center justify-center font-black text-secondary-600">
                                                     {emp.user.email.charAt(0).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <p className="font-bold text-secondary-900">{emp.user.email}</p>
+                                                    <p className="font-bold text-secondary-900 hover:text-primary-600 transition-colors">{emp.user.email}</p>
                                                     <div className="flex gap-2">
                                                         <p className="text-[10px] text-secondary-400 font-bold">Pan: {emp.panNumber || 'NOTSET'}</p>
                                                         <span className={`text-[10px] font-black px-1 rounded ${emp.user.isActive ? 'bg-success-100 text-success-700' : 'bg-danger-100 text-danger-700'}`}>{emp.user.isActive ? 'ACTIVE' : 'INACTIVE'}</span>
@@ -602,7 +667,31 @@ export default function HRManagementPage() {
                                                             offerLetterUrl: emp.offerLetterUrl || '',
                                                             contractUrl: emp.contractUrl || '',
                                                             jobDescription: emp.jobDescription || '',
-                                                            kra: emp.kra || ''
+                                                            kra: emp.kra || '',
+                                                            totalExperienceYears: emp.totalExperienceYears || 0,
+                                                            totalExperienceMonths: emp.totalExperienceMonths || 0,
+                                                            relevantExperienceYears: emp.relevantExperienceYears || 0,
+                                                            relevantExperienceMonths: emp.relevantExperienceMonths || 0,
+                                                            qualification: emp.qualification || '',
+                                                            grade: emp.grade || '',
+                                                            lastPromotionDate: emp.lastPromotionDate?.split('T')[0] || '',
+                                                            lastIncrementDate: emp.lastIncrementDate?.split('T')[0] || '',
+                                                            nextReviewDate: emp.nextReviewDate?.split('T')[0] || '',
+                                                            lastIncrementPercentage: emp.lastIncrementPercentage || 0,
+                                                            designationId: emp.designationId || '',
+
+                                                            phoneNumber: emp.phoneNumber || '',
+                                                            officePhone: emp.officePhone || '',
+                                                            personalEmail: emp.personalEmail || '',
+                                                            emergencyContact: emp.emergencyContact || '',
+                                                            address: emp.address || '',
+                                                            permanentAddress: emp.permanentAddress || '',
+                                                            bloodGroup: emp.bloodGroup || '',
+                                                            ifscCode: emp.ifscCode || '', // Check if emp model has this field? It wasn't in list but added to form. If undefined, default to ''
+                                                            aadharNumber: emp.aadharNumber || '',
+                                                            uanNumber: emp.uanNumber || '',
+                                                            pfNumber: emp.pfNumber || '',
+                                                            esicNumber: emp.esicNumber || ''
                                                         });
                                                         setShowEmpModal(true);
                                                     }}
@@ -1445,10 +1534,17 @@ export default function HRManagementPage() {
                     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
                             <div className="bg-secondary-50 p-6 border-b border-secondary-100 flex justify-between items-center">
-                                <h3 className="text-xl font-bold text-secondary-900">{selectedEmp ? 'Edit Profile' : 'New Onboarding'}</h3>
+                                <div>
+                                    <h3 className="text-xl font-bold text-secondary-900">{selectedEmp ? 'Edit Profile' : 'New Onboarding'}</h3>
+                                    {selectedEmp && (
+                                        <a href={`/dashboard/hr-management/employees/${selectedEmp.id}`} target="_blank" className="text-xs text-primary-600 font-bold hover:underline flex items-center gap-1">
+                                            View Full Track Record & Analytics ↗
+                                        </a>
+                                    )}
+                                </div>
                                 <button onClick={() => setShowEmpModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
                             </div>
-                            <form onSubmit={handleEmpSubmit} className="p-8 grid grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
+                            <form onSubmit={handleEmpSubmit} className="p-8 grid grid-cols-2 gap-6 max-h-[85vh] overflow-y-auto">
                                 {selectedEmp ? (
                                     <div className="col-span-2">
                                         <label className="label-premium">Staff Email (Read Only)</label>
@@ -1471,12 +1567,116 @@ export default function HRManagementPage() {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="label-premium">Designation</label>
-                                    <input type="text" className="input-premium" placeholder="e.g. Senior Associate" value={empForm.designation} onChange={e => setEmpForm({ ...empForm, designation: e.target.value })} />
+                                    <label className="label-premium">Designation & KRA Profile</label>
+                                    <select
+                                        className="input-premium"
+                                        value={empForm.designationId}
+                                        onChange={e => {
+                                            const desId = e.target.value;
+                                            const selected = designations.find(d => d.id === desId);
+                                            setEmpForm({
+                                                ...empForm,
+                                                designationId: desId,
+                                                designation: selected?.name || empForm.designation,
+                                                jobDescription: selected?.jobDescription || empForm.jobDescription,
+                                                kra: selected?.kra || empForm.kra
+                                            });
+                                        }}
+                                    >
+                                        <option value="">Select Predefined Role</option>
+                                        {designations.map(d => (
+                                            <option key={d.id} value={d.id}>{d.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="col-span-2">
+                                    <h4 className="label-premium font-black text-primary-600 border-b border-primary-100 pb-2 mb-4 block uppercase tracking-tighter">Financial & Statutory</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="label-premium">Base Salary (Monthly)</label>
+                                            <input type="number" className="input-premium" value={empForm.baseSalary} onChange={e => setEmpForm({ ...empForm, baseSalary: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="label-premium">Bank Name</label>
+                                            <input type="text" className="input-premium" value={empForm.bankName} onChange={e => setEmpForm({ ...empForm, bankName: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="label-premium">Account Number</label>
+                                            <input type="text" className="input-premium" value={empForm.accountNumber} onChange={e => setEmpForm({ ...empForm, accountNumber: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="label-premium">IFSC Code</label>
+                                            <input type="text" className="input-premium" value={empForm.ifscCode} onChange={e => setEmpForm({ ...empForm, ifscCode: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="label-premium">PAN Number</label>
+                                            <input type="text" className="input-premium" value={empForm.panNumber} onChange={e => setEmpForm({ ...empForm, panNumber: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="label-premium">Aadhar Number</label>
+                                            <input type="text" className="input-premium" value={empForm.aadharNumber} onChange={e => setEmpForm({ ...empForm, aadharNumber: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="label-premium">UAN Number</label>
+                                            <input type="text" className="input-premium" value={empForm.uanNumber} onChange={e => setEmpForm({ ...empForm, uanNumber: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="label-premium">PF Number</label>
+                                            <input type="text" className="input-premium" value={empForm.pfNumber} onChange={e => setEmpForm({ ...empForm, pfNumber: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="label-premium">ESIC Number</label>
+                                            <input type="text" className="input-premium" value={empForm.esicNumber} onChange={e => setEmpForm({ ...empForm, esicNumber: e.target.value })} />
+                                        </div>
+                                    </div>
                                 </div>
                                 <div>
-                                    <label className="label-premium">Base Salary (Monthly)</label>
-                                    <input type="number" className="input-premium" value={empForm.baseSalary} onChange={e => setEmpForm({ ...empForm, baseSalary: e.target.value })} />
+                                    <label className="label-premium">Grade / Level</label>
+                                    <input type="text" className="input-premium" value={empForm.grade} onChange={e => setEmpForm({ ...empForm, grade: e.target.value })} />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="label-premium font-black text-primary-600 border-b border-primary-100 pb-2 mb-4 block uppercase tracking-tighter">Experience & Qualification</label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Total Exp (Years/Months)</label>
+                                            <div className="flex gap-2">
+                                                <input type="number" className="input-premium" placeholder="Y" value={empForm.totalExperienceYears} onChange={e => setEmpForm({ ...empForm, totalExperienceYears: parseInt(e.target.value) || 0 })} />
+                                                <input type="number" className="input-premium" placeholder="M" value={empForm.totalExperienceMonths} onChange={e => setEmpForm({ ...empForm, totalExperienceMonths: parseInt(e.target.value) || 0 })} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-primary-500 uppercase">Relevant Exp (Years/Months)</label>
+                                            <div className="flex gap-2">
+                                                <input type="number" className="input-premium border-primary-100" placeholder="Y" value={empForm.relevantExperienceYears} onChange={e => setEmpForm({ ...empForm, relevantExperienceYears: parseInt(e.target.value) || 0 })} />
+                                                <input type="number" className="input-premium border-primary-100" placeholder="M" value={empForm.relevantExperienceMonths} onChange={e => setEmpForm({ ...empForm, relevantExperienceMonths: parseInt(e.target.value) || 0 })} />
+                                            </div>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Educational Qualification</label>
+                                            <input type="text" className="input-premium" value={empForm.qualification} onChange={e => setEmpForm({ ...empForm, qualification: e.target.value })} />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="label-premium font-black text-warning-600 border-b border-warning-100 pb-2 mb-4 block uppercase tracking-tighter">Growth & Review Track</label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Promotion Date</label>
+                                            <input type="date" className="input-premium" value={empForm.lastPromotionDate} onChange={e => setEmpForm({ ...empForm, lastPromotionDate: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Increment Date</label>
+                                            <input type="date" className="input-premium" value={empForm.lastIncrementDate} onChange={e => setEmpForm({ ...empForm, lastIncrementDate: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Increment %</label>
+                                            <input type="number" step="0.01" className="input-premium" value={empForm.lastIncrementPercentage} onChange={e => setEmpForm({ ...empForm, lastIncrementPercentage: parseFloat(e.target.value) || 0 })} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-warning-600 uppercase">Next Review Date</label>
+                                            <input type="date" className="input-premium border-warning-200" value={empForm.nextReviewDate} onChange={e => setEmpForm({ ...empForm, nextReviewDate: e.target.value })} />
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="col-span-2">
                                     <label className="label-premium text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-2 block">Key Responsibility Areas (KRA)</label>
@@ -1529,132 +1729,139 @@ export default function HRManagementPage() {
                             </form>
                         </div>
                     </div>
-                )}
+                )
+                }
 
-                {showReviewModal && (
-                    <div className="fixed inset-0 bg-secondary-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-                            <div className="bg-warning-50 p-6 border-b border-warning-100 flex justify-between items-center">
-                                <h3 className="text-xl font-bold text-warning-900">Performance Review</h3>
-                                <button onClick={() => setShowReviewModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
-                            </div>
-                            <form onSubmit={handleReviewSubmit} className="p-8 space-y-6">
-                                <div>
-                                    <label className="label-premium bg-warning-50 text-warning-800 px-2 py-1 rounded inline-block mb-2">Rating</label>
-                                    <div className="flex gap-4">
-                                        {[1, 2, 3, 4, 5].map(star => (
-                                            <button
-                                                type="button"
-                                                key={star}
-                                                onClick={() => setReviewForm({ ...reviewForm, rating: star })}
-                                                className={`text-3xl transition-transform hover:scale-110 ${star <= reviewForm.rating ? 'text-warning-500' : 'text-secondary-200'}`}
-                                            >
-                                                ★
-                                            </button>
-                                        ))}
+                {
+                    showReviewModal && (
+                        <div className="fixed inset-0 bg-secondary-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+                                <div className="bg-warning-50 p-6 border-b border-warning-100 flex justify-between items-center">
+                                    <h3 className="text-xl font-bold text-warning-900">Performance Review</h3>
+                                    <button onClick={() => setShowReviewModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
+                                </div>
+                                <form onSubmit={handleReviewSubmit} className="p-8 space-y-6">
+                                    <div>
+                                        <label className="label-premium bg-warning-50 text-warning-800 px-2 py-1 rounded inline-block mb-2">Rating</label>
+                                        <div className="flex gap-4">
+                                            {[1, 2, 3, 4, 5].map(star => (
+                                                <button
+                                                    type="button"
+                                                    key={star}
+                                                    onClick={() => setReviewForm({ ...reviewForm, rating: star })}
+                                                    className={`text-3xl transition-transform hover:scale-110 ${star <= reviewForm.rating ? 'text-warning-500' : 'text-secondary-200'}`}
+                                                >
+                                                    ★
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                                <div>
-                                    <label className="label-premium">Feedback & Comments</label>
-                                    <textarea
-                                        required
-                                        className="input-premium h-32"
-                                        placeholder="Detailed feedback about the employee's performance..."
-                                        value={reviewForm.feedback}
-                                        onChange={e => setReviewForm({ ...reviewForm, feedback: e.target.value })}
-                                    />
-                                </div>
-                                <div className="pt-4 flex gap-4">
-                                    <button type="submit" className="btn bg-warning-500 hover:bg-warning-600 text-white flex-1 py-4 text-sm font-black uppercase tracking-widest shadow-lg">Submit Review</button>
-                                    <button type="button" onClick={() => setShowReviewModal(false)} className="btn btn-secondary px-8">Cancel</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-
-                {showAttendanceModal && (
-                    <div className="fixed inset-0 bg-secondary-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-                            <div className="bg-secondary-50 p-6 border-b border-secondary-100 flex justify-between items-center">
-                                <h3 className="text-xl font-bold text-secondary-900">Correct Attendance</h3>
-                                <button onClick={() => setShowAttendanceModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
+                                    <div>
+                                        <label className="label-premium">Feedback & Comments</label>
+                                        <textarea
+                                            required
+                                            className="input-premium h-32"
+                                            placeholder="Detailed feedback about the employee's performance..."
+                                            value={reviewForm.feedback}
+                                            onChange={e => setReviewForm({ ...reviewForm, feedback: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="pt-4 flex gap-4">
+                                        <button type="submit" className="btn bg-warning-500 hover:bg-warning-600 text-white flex-1 py-4 text-sm font-black uppercase tracking-widest shadow-lg">Submit Review</button>
+                                        <button type="button" onClick={() => setShowReviewModal(false)} className="btn btn-secondary px-8">Cancel</button>
+                                    </div>
+                                </form>
                             </div>
-                            <form onSubmit={handleAttendanceUpdate} className="p-8 space-y-4">
-                                <div>
-                                    <label className="label-premium">Check In Time</label>
-                                    <input type="datetime-local" className="input-premium" value={attendanceForm.checkIn} onChange={e => setAttendanceForm({ ...attendanceForm, checkIn: e.target.value })} />
-                                </div>
-                                <div>
-                                    <label className="label-premium">Check Out Time</label>
-                                    <input type="datetime-local" className="input-premium" value={attendanceForm.checkOut} onChange={e => setAttendanceForm({ ...attendanceForm, checkOut: e.target.value })} />
-                                </div>
-                                <div>
-                                    <label className="label-premium">Status</label>
-                                    <select className="input-premium" value={attendanceForm.status} onChange={e => setAttendanceForm({ ...attendanceForm, status: e.target.value })}>
-                                        <option value="PRESENT">Present</option>
-                                        <option value="ABSENT">Absent</option>
-                                        <option value="LEAVE">On Leave</option>
-                                    </select>
-                                </div>
-                                <button type="submit" className="btn btn-primary w-full py-4 text-sm font-black uppercase tracking-widest shadow-lg">Update Record</button>
-                            </form>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
-                {showJobModal && (
-                    <div className="fixed inset-0 bg-secondary-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-                            <div className="bg-primary-50 p-6 border-b border-primary-100 flex justify-between items-center">
-                                <h3 className="text-xl font-bold text-primary-900">{selectedJob ? 'Edit Job Posting' : 'Post New Job'}</h3>
-                                <button onClick={() => setShowJobModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
+                {
+                    showAttendanceModal && (
+                        <div className="fixed inset-0 bg-secondary-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+                                <div className="bg-secondary-50 p-6 border-b border-secondary-100 flex justify-between items-center">
+                                    <h3 className="text-xl font-bold text-secondary-900">Correct Attendance</h3>
+                                    <button onClick={() => setShowAttendanceModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
+                                </div>
+                                <form onSubmit={handleAttendanceUpdate} className="p-8 space-y-4">
+                                    <div>
+                                        <label className="label-premium">Check In Time</label>
+                                        <input type="datetime-local" className="input-premium" value={attendanceForm.checkIn} onChange={e => setAttendanceForm({ ...attendanceForm, checkIn: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <label className="label-premium">Check Out Time</label>
+                                        <input type="datetime-local" className="input-premium" value={attendanceForm.checkOut} onChange={e => setAttendanceForm({ ...attendanceForm, checkOut: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <label className="label-premium">Status</label>
+                                        <select className="input-premium" value={attendanceForm.status} onChange={e => setAttendanceForm({ ...attendanceForm, status: e.target.value })}>
+                                            <option value="PRESENT">Present</option>
+                                            <option value="ABSENT">Absent</option>
+                                            <option value="LEAVE">On Leave</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" className="btn btn-primary w-full py-4 text-sm font-black uppercase tracking-widest shadow-lg">Update Record</button>
+                                </form>
                             </div>
-                            <form onSubmit={handleJobSubmit} className="p-8 grid grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
-                                <div className="col-span-2">
-                                    <label className="label-premium">Job Title</label>
-                                    <input type="text" required className="input-premium" value={jobForm.title} onChange={e => setJobForm({ ...jobForm, title: e.target.value })} />
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="label-premium">Description</label>
-                                    <textarea required rows={4} className="input-premium" value={jobForm.description} onChange={e => setJobForm({ ...jobForm, description: e.target.value })} />
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="label-premium">Requirements</label>
-                                    <textarea rows={3} className="input-premium" value={jobForm.requirements} onChange={e => setJobForm({ ...jobForm, requirements: e.target.value })} />
-                                </div>
-                                <div>
-                                    <label className="label-premium">Location</label>
-                                    <input type="text" className="input-premium" value={jobForm.location} onChange={e => setJobForm({ ...jobForm, location: e.target.value })} />
-                                </div>
-                                <div>
-                                    <label className="label-premium">Salary Range</label>
-                                    <input type="text" className="input-premium" value={jobForm.salaryRange} onChange={e => setJobForm({ ...jobForm, salaryRange: e.target.value })} />
-                                </div>
-                                <div>
-                                    <label className="label-premium">Type</label>
-                                    <select className="input-premium" value={jobForm.type} onChange={e => setJobForm({ ...jobForm, type: e.target.value })}>
-                                        <option value="FULL_TIME">Full Time</option>
-                                        <option value="PART_TIME">Part Time</option>
-                                        <option value="CONTRACT">Contract</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="label-premium">Status</label>
-                                    <select className="input-premium" value={jobForm.status} onChange={e => setJobForm({ ...jobForm, status: e.target.value })}>
-                                        <option value="OPEN">Open</option>
-                                        <option value="CLOSED">Closed</option>
-                                        <option value="DRAFT">Draft</option>
-                                    </select>
-                                </div>
-                                <div className="col-span-2 pt-6 flex gap-4">
-                                    <button type="submit" className="btn btn-primary flex-1 py-4 text-sm font-black uppercase tracking-widest shadow-lg">Save Job</button>
-                                    <button type="button" onClick={() => setShowJobModal(false)} className="btn btn-secondary px-8">Cancel</button>
-                                </div>
-                            </form>
                         </div>
-                    </div>
-                )}
+                    )
+                }
+
+                {
+                    showJobModal && (
+                        <div className="fixed inset-0 bg-secondary-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+                                <div className="bg-primary-50 p-6 border-b border-primary-100 flex justify-between items-center">
+                                    <h3 className="text-xl font-bold text-primary-900">{selectedJob ? 'Edit Job Posting' : 'Post New Job'}</h3>
+                                    <button onClick={() => setShowJobModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
+                                </div>
+                                <form onSubmit={handleJobSubmit} className="p-8 grid grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
+                                    <div className="col-span-2">
+                                        <label className="label-premium">Job Title</label>
+                                        <input type="text" required className="input-premium" value={jobForm.title} onChange={e => setJobForm({ ...jobForm, title: e.target.value })} />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="label-premium">Description</label>
+                                        <textarea required rows={4} className="input-premium" value={jobForm.description} onChange={e => setJobForm({ ...jobForm, description: e.target.value })} />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="label-premium">Requirements</label>
+                                        <textarea rows={3} className="input-premium" value={jobForm.requirements} onChange={e => setJobForm({ ...jobForm, requirements: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <label className="label-premium">Location</label>
+                                        <input type="text" className="input-premium" value={jobForm.location} onChange={e => setJobForm({ ...jobForm, location: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <label className="label-premium">Salary Range</label>
+                                        <input type="text" className="input-premium" value={jobForm.salaryRange} onChange={e => setJobForm({ ...jobForm, salaryRange: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <label className="label-premium">Type</label>
+                                        <select className="input-premium" value={jobForm.type} onChange={e => setJobForm({ ...jobForm, type: e.target.value })}>
+                                            <option value="FULL_TIME">Full Time</option>
+                                            <option value="PART_TIME">Part Time</option>
+                                            <option value="CONTRACT">Contract</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="label-premium">Status</label>
+                                        <select className="input-premium" value={jobForm.status} onChange={e => setJobForm({ ...jobForm, status: e.target.value })}>
+                                            <option value="OPEN">Open</option>
+                                            <option value="CLOSED">Closed</option>
+                                            <option value="DRAFT">Draft</option>
+                                        </select>
+                                    </div>
+                                    <div className="col-span-2 pt-6 flex gap-4">
+                                        <button type="submit" className="btn btn-primary flex-1 py-4 text-sm font-black uppercase tracking-widest shadow-lg">Save Job</button>
+                                        <button type="button" onClick={() => setShowJobModal(false)} className="btn btn-secondary px-8">Cancel</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )
+                }
             </div >
 
         </DashboardLayout >
