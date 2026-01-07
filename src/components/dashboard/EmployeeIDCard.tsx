@@ -3,11 +3,12 @@
 import { useState, useRef } from 'react';
 import { Camera, Download, Printer, User as UserIcon } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import Image from 'next/image';
 
 export default function EmployeeIDCard({ employee }: { employee: any }) {
     const cardRef = useRef<HTMLDivElement>(null);
     const [uploading, setUploading] = useState(false);
-    const [photo, setPhoto] = useState(employee.profilePicture || null);
+    const [photo, setPhoto] = useState<string | null>(employee.profilePicture || null);
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files?.[0]) return;
@@ -71,7 +72,12 @@ export default function EmployeeIDCard({ employee }: { employee: any }) {
                     {/* Photo */}
                     <div className="relative -mt-16 mx-auto w-32 h-32 rounded-full border-4 border-white shadow-lg overflow-hidden bg-secondary-100 group-hover:scale-105 transition-transform duration-300">
                         {photo ? (
-                            <img src={photo} alt="Profile" className="w-full h-full object-cover" />
+                            <Image
+                                src={photo}
+                                alt="Profile"
+                                fill
+                                className="object-cover"
+                            />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-secondary-300">
                                 <UserIcon size={48} />

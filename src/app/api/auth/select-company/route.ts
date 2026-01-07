@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser, generateToken } from '@/lib/auth';
 
-export const dynamic = 'force-dynamic';
+
+// Removed force-dynamic to let Next.js decide
+
 
 export async function POST(req: NextRequest) {
     try {

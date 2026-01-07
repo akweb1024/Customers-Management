@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash, BookOpen, Save, CheckSquare } from 'lucide-react';
+import { Plus, Trash, BookOpen, CheckSquare } from 'lucide-react';
 
 export default function OnboardingManager() {
     const [modules, setModules] = useState<any[]>([]);

@@ -6,7 +6,6 @@ import { BookOpen, CheckCircle, Lock, PlayCircle, XCircle } from 'lucide-react';
 export default function OnboardingPortal() {
     const [modules, setModules] = useState<any[]>([]);
     const [activeModule, setActiveModule] = useState<any>(null);
-    const [viewingContent, setViewingContent] = useState(false);
     const [takingQuiz, setTakingQuiz] = useState(false);
     const [loading, setLoading] = useState(true);
 
@@ -35,7 +34,6 @@ export default function OnboardingPortal() {
 
     const startModule = (module: any) => {
         setActiveModule(module);
-        setViewingContent(true);
         setTakingQuiz(false);
         setQuizResult(null);
         setAnswers({});
