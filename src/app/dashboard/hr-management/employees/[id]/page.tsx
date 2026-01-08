@@ -87,7 +87,9 @@ export default function EmployeeProfilePage() {
         esicNumber: '',
         ifscCode: '',
         profilePicture: '',
-        employeeId: ''
+        employeeId: '',
+        isActive: true,
+        dateOfJoining: ''
     });
 
     useEffect(() => {
@@ -133,6 +135,8 @@ export default function EmployeeProfilePage() {
             bloodGroup: employee.bloodGroup || '',
             ifscCode: employee.ifscCode || '',
             aadharNumber: employee.aadharNumber || '',
+            isActive: employee.user.isActive,
+            dateOfJoining: employee.dateOfJoining?.split('T')[0] || '',
             uanNumber: employee.uanNumber || '',
             pfNumber: employee.pfNumber || '',
             esicNumber: employee.esicNumber || '',
@@ -167,20 +171,54 @@ export default function EmployeeProfilePage() {
 
     const handleEmpSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Clean the data - convert empty strings to null for optional fields
+        const cleanData = Object.fromEntries(
+            Object.entries(empForm).map(([key, value]) => {
+                // Skip these fields
+                if (key === 'email' || key === 'password') return [key, value];
+
+                // Convert empty strings to null
+                if (value === '' || value === 'null' || value === 'undefined') {
+                    return [key, null];
+                }
+
+                return [key, value];
+            })
+        );
+
+        // Remove password if empty (don't update password)
+        if (!cleanData.password) {
+            delete cleanData.password;
+        }
+
+        // Remove email (can't be updated)
+        delete cleanData.email;
+
+        console.log('📤 Sending employee update:', { id: employee.id, ...cleanData });
+
         try {
             const token = localStorage.getItem('token');
             const res = await fetch('/api/hr/employees', {
                 method: 'PATCH',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: employee.id, ...empForm })
+                body: JSON.stringify({ id: employee.id, ...cleanData })
             });
 
+            const responseData = await res.json();
+
             if (res.ok) {
+                console.log('✅ Employee updated successfully');
+                alert('Employee profile updated successfully!');
                 setShowEmpModal(false);
                 fetchEmployeeDetails(); // Refresh profile
+            } else {
+                console.error('❌ Update failed:', responseData);
+                alert(`Failed to update: ${responseData.error || 'Unknown error'}`);
             }
         } catch (err) {
-            console.error(err);
+            console.error('❌ Network error:', err);
+            alert('Network error. Please check your connection and try again.');
         }
     };
 
@@ -248,8 +286,8 @@ export default function EmployeeProfilePage() {
                     {/* Right Content */}
                     <div className="lg:col-span-3 space-y-6">
                         {/* Tabs */}
-                        <div className="flex gap-2 border-b border-secondary-200">
-                            {['overview', 'history', 'documents', 'performance'].map(tab => (
+                        <div className="flex gap-2 border-b border-secondary-200 overflow-x-auto">
+                            {['overview', 'history', 'documents', 'performance', 'attendance', 'leaves'].map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -438,239 +476,383 @@ export default function EmployeeProfilePage() {
                                 ))}
                             </div>
                         )}
-                    </div>
-                </div>
 
-                {/* EDIT MODAL */}
-                {showEmpModal && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-                            <div className="bg-secondary-50 p-6 border-b border-secondary-100 flex justify-between items-center">
-                                <h3 className="text-xl font-bold text-secondary-900">Edit Profile</h3>
-                                <button onClick={() => setShowEmpModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
+                        {/* Attendance Tab */}
+                        {activeTab === 'attendance' && (
+                            <div className="space-y-6">
+                                <h3 className="font-bold text-lg text-secondary-900">Attendance History (Last 30 Days)</h3>
+                                <div className="card-premium overflow-hidden p-0">
+                                    <table className="table">
+                                        <thead className="bg-secondary-50">
+                                            <tr>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-secondary-500 uppercase">Date</th>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-secondary-500 uppercase">Check In</th>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-secondary-500 uppercase">Check Out</th>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-secondary-500 uppercase">Status</th>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-secondary-500 uppercase">Work Loc</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-secondary-100">
+                                            {employee.attendance?.map((rec: any) => (
+                                                <tr key={rec.id} className="hover:bg-secondary-50">
+                                                    <td className="px-6 py-4 text-sm font-medium"><FormattedDate date={rec.date} /></td>
+                                                    <td className="px-6 py-4 text-sm text-secondary-900 font-bold">
+                                                        {rec.checkIn ? new Date(rec.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-secondary-900 font-bold">
+                                                        {rec.checkOut ? new Date(rec.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${rec.status === 'PRESENT' ? 'bg-success-100 text-success-700' : 'bg-warning-100 text-warning-700'}`}>
+                                                            {rec.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-secondary-500 uppercase font-medium">{rec.workFrom}</td>
+                                                </tr>
+                                            ))}
+                                            {(!employee.attendance || employee.attendance.length === 0) && (
+                                                <tr><td colSpan={5} className="p-8 text-center text-secondary-400">No attendance records found.</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                            <form onSubmit={handleEmpSubmit} className="p-8 grid grid-cols-2 gap-6 max-h-[85vh] overflow-y-auto">
-                                <div className="col-span-2 grid grid-cols-[100px_1fr] gap-6 items-center bg-secondary-50 p-4 rounded-xl">
-                                    <div className="relative w-24 h-24 rounded-full overflow-hidden bg-white border-2 border-secondary-200">
-                                        {empForm.profilePicture ? (
-                                            <img src={empForm.profilePicture} alt="Profile" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-secondary-300">
-                                                {(empForm.email || 'U')[0].toUpperCase()}
-                                            </div>
-                                        )}
-                                        <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-                                            <span className="text-white text-xs font-bold text-center">Change<br />Photo</span>
-                                            <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-                                        </label>
-                                    </div>
-                                    <div className="space-y-4 w-full">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="label-premium">Staff Email (Read Only)</label>
-                                                <input type="email" disabled className="input-premium bg-white opacity-60" value={empForm.email} />
-                                            </div>
-                                            <div>
-                                                <label className="label-premium">Employee ID</label>
-                                                <input type="text" className="input-premium bg-white" placeholder="STM-001" value={empForm.employeeId} onChange={e => setEmpForm({ ...empForm, employeeId: e.target.value })} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="col-span-1">
-                                    <label className="label-premium">System Role</label>
-                                    <select className="input-premium" value={empForm.role} onChange={e => setEmpForm({ ...empForm, role: e.target.value })}>
-                                        <option value="SALES_EXECUTIVE">Sales Executive</option>
-                                        <option value="MANAGER">Manager</option>
-                                        <option value="FINANCE_ADMIN">Finance Admin</option>
-                                        <option value="ADMIN">Admin</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="label-premium">Designation & KRA Profile</label>
-                                    <select
-                                        className="input-premium"
-                                        value={empForm.designationId}
-                                        onChange={e => {
-                                            const desId = e.target.value;
-                                            const selected = designations.find(d => d.id === desId);
-                                            setEmpForm({
-                                                ...empForm,
-                                                designationId: desId,
-                                                designation: selected?.name || empForm.designation,
-                                                jobDescription: selected?.jobDescription || empForm.jobDescription,
-                                                kra: selected?.kra || empForm.kra
-                                            });
-                                        }}
-                                    >
-                                        <option value="">Select Predefined Role</option>
-                                        {designations.map(d => (
-                                            <option key={d.id} value={d.id}>{d.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                        )}
 
-                                <div className="col-span-2">
-                                    <h4 className="label-premium font-black text-primary-600 border-b border-primary-100 pb-2 mb-4 block uppercase tracking-tighter">Contact & Personal Info</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="label-premium">Mobile Number</label>
-                                            <input type="number" className="input-premium" value={empForm.phoneNumber} onChange={e => setEmpForm({ ...empForm, phoneNumber: e.target.value })} />
+                        {/* Leaves Tab */}
+                        {activeTab === 'leaves' && (
+                            <div className="space-y-6">
+
+                                <div className="flex justify-between items-center">
+                                    <h3 className="font-bold text-lg text-secondary-900">Leave Requests & History</h3>
+                                    {employee.dateOfJoining && (
+                                        <div className="flex gap-4">
+                                            <div className="bg-success-50 px-4 py-2 rounded-xl text-center border border-success-100">
+                                                <p className="text-[10px] font-bold text-success-600 uppercase tracking-widest">Available</p>
+                                                <p className="text-xl font-black text-secondary-900">
+                                                    {(() => {
+                                                        const doj = new Date(employee.dateOfJoining);
+                                                        const now = new Date();
+                                                        const months = (now.getFullYear() - doj.getFullYear()) * 12 + (now.getMonth() - doj.getMonth());
+                                                        const accrued = months * 1.5;
+
+                                                        const taken = employee.leaveRequests
+                                                            ?.filter((l: any) => l.status === 'APPROVED')
+                                                            .reduce((acc: number, l: any) => {
+                                                                const start = new Date(l.startDate);
+                                                                const end = new Date(l.endDate);
+                                                                const diff = Math.abs(end.getTime() - start.getTime());
+                                                                const days = Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1;
+                                                                return acc + days;
+                                                            }, 0) || 0;
+
+                                                        const balance = accrued - taken;
+                                                        return balance.toFixed(1);
+                                                    })()}
+                                                </p>
+                                            </div>
+                                            <div className="bg-secondary-50 px-4 py-2 rounded-xl text-center border border-secondary-100">
+                                                <p className="text-[10px] font-bold text-secondary-400 uppercase tracking-widest">Taken (Total)</p>
+                                                <p className="text-xl font-black text-secondary-900">
+                                                    {(() => {
+                                                        const taken = employee.leaveRequests
+                                                            ?.filter((l: any) => l.status === 'APPROVED')
+                                                            .reduce((acc: number, l: any) => {
+                                                                const start = new Date(l.startDate);
+                                                                const end = new Date(l.endDate);
+                                                                const diff = Math.abs(end.getTime() - start.getTime());
+                                                                const days = Math.ceil(diff / (1000 * 60 * 60 * 24)) + 1;
+                                                                return acc + days;
+                                                            }, 0) || 0;
+                                                        return taken;
+                                                    })()}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="label-premium">Office Extension/Mobile</label>
-                                            <input type="number" className="input-premium" value={empForm.officePhone} onChange={e => setEmpForm({ ...empForm, officePhone: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">Personal Email</label>
-                                            <input type="email" className="input-premium" value={empForm.personalEmail} onChange={e => setEmpForm({ ...empForm, personalEmail: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">Emergency Contact</label>
-                                            <input type="number" className="input-premium" value={empForm.emergencyContact} onChange={e => setEmpForm({ ...empForm, emergencyContact: e.target.value })} />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="label-premium">Current Address</label>
-                                            <input type="text" className="input-premium" value={empForm.address} onChange={e => setEmpForm({ ...empForm, address: e.target.value })} />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="label-premium">Permanent Address</label>
-                                            <input type="text" className="input-premium" value={empForm.permanentAddress} onChange={e => setEmpForm({ ...empForm, permanentAddress: e.target.value })} />
+                                    )}
+                                </div>
+                                <div className="card-premium overflow-hidden p-0">
+                                    <table className="table">
+                                        <thead className="bg-secondary-50">
+                                            <tr>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-secondary-500 uppercase">Requested On</th>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-secondary-500 uppercase">Type</th>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-secondary-500 uppercase">Duration</th>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-secondary-500 uppercase">Reason</th>
+                                                <th className="px-6 py-4 text-left text-xs font-bold text-secondary-500 uppercase">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-secondary-100">
+                                            {employee.leaveRequests?.map((leave: any) => (
+                                                <tr key={leave.id} className="hover:bg-secondary-50">
+                                                    <td className="px-6 py-4 text-sm text-secondary-500"><FormattedDate date={leave.createdAt} /></td>
+                                                    <td className="px-6 py-4 font-bold text-sm text-secondary-900 uppercase">{leave.type}</td>
+                                                    <td className="px-6 py-4 text-sm font-medium">
+                                                        <FormattedDate date={leave.startDate} /> - <FormattedDate date={leave.endDate} />
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-secondary-600 truncate max-w-[200px]" title={leave.reason}>{leave.reason}</td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${leave.status === 'APPROVED' ? 'bg-success-100 text-success-700' :
+                                                            leave.status === 'REJECTED' ? 'bg-danger-100 text-danger-700' : 'bg-warning-100 text-warning-700'
+                                                            }`}>
+                                                            {leave.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {(!employee.leaveRequests || employee.leaveRequests.length === 0) && (
+                                                <tr><td colSpan={5} className="p-8 text-center text-secondary-400">No leave history found.</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* EDIT MODAL */}
+                        {showEmpModal && (
+                            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
+                                    <div className="bg-secondary-50 p-6 border-b border-secondary-100 flex justify-between items-center">
+                                        <h3 className="text-xl font-bold text-secondary-900">Edit Profile</h3>
+                                        <button onClick={() => setShowEmpModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
+                                    </div>
+                                    <form onSubmit={handleEmpSubmit} className="p-8 grid grid-cols-2 gap-6 max-h-[85vh] overflow-y-auto">
+                                        <div className="col-span-2 grid grid-cols-[100px_1fr] gap-6 items-center bg-secondary-50 p-4 rounded-xl">
+                                            <div className="relative w-24 h-24 rounded-full overflow-hidden bg-white border-2 border-secondary-200">
+                                                {empForm.profilePicture ? (
+                                                    <img src={empForm.profilePicture} alt="Profile" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-secondary-300">
+                                                        {(empForm.email || 'U')[0].toUpperCase()}
+                                                    </div>
+                                                )}
+                                                <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
+                                                    <span className="text-white text-xs font-bold text-center">Change<br />Photo</span>
+                                                    <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                                                </label>
+                                            </div>
+                                            <div className="space-y-4 w-full">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="label-premium">Staff Email (Read Only)</label>
+                                                        <input type="email" disabled className="input-premium bg-white opacity-60" value={empForm.email} />
+                                                    </div>
+                                                    <div>
+                                                        <label className="label-premium">Employee ID</label>
+                                                        <input type="text" className="input-premium bg-white" placeholder="STM-001" value={empForm.employeeId} onChange={e => setEmpForm({ ...empForm, employeeId: e.target.value })} />
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div className="col-span-1">
-                                            <label className="label-premium">Blood Group</label>
-                                            <input type="text" className="input-premium" value={empForm.bloodGroup} onChange={e => setEmpForm({ ...empForm, bloodGroup: e.target.value })} />
+                                            <label className="label-premium">System Role</label>
+                                            <select className="input-premium" value={empForm.role} onChange={e => setEmpForm({ ...empForm, role: e.target.value })}>
+                                                <option value="SALES_EXECUTIVE">Sales Executive</option>
+                                                <option value="MANAGER">Manager</option>
+                                                <option value="FINANCE_ADMIN">Finance Admin</option>
+                                                <option value="HR_MANAGER">HR Manager</option>
+                                                <option value="ADMIN">Admin</option>
+                                            </select>
                                         </div>
-                                    </div>
-                                </div>
+                                        <div className="col-span-1">
+                                            <label className="label-premium">Account Status</label>
+                                            <select className="input-premium" value={empForm.isActive ? 'true' : 'false'} onChange={e => setEmpForm({ ...empForm, isActive: e.target.value === 'true' })}>
+                                                <option value="true">Active</option>
+                                                <option value="false">Inactive</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="label-premium">Designation & KRA Profile</label>
+                                            <select
+                                                className="input-premium"
+                                                value={empForm.designationId}
+                                                onChange={e => {
+                                                    const desId = e.target.value;
+                                                    const selected = designations.find(d => d.id === desId);
+                                                    setEmpForm({
+                                                        ...empForm,
+                                                        designationId: desId,
+                                                        designation: selected?.name || empForm.designation,
+                                                        jobDescription: selected?.jobDescription || empForm.jobDescription,
+                                                        kra: selected?.kra || empForm.kra
+                                                    });
+                                                }}
+                                            >
+                                                <option value="">Select Predefined Role</option>
+                                                {designations.map(d => (
+                                                    <option key={d.id} value={d.id}>{d.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
 
-                                <div className="col-span-2">
-                                    <h4 className="label-premium font-black text-primary-600 border-b border-primary-100 pb-2 mb-4 block uppercase tracking-tighter">Financial & Statutory</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="label-premium">Base Salary (Monthly)</label>
-                                            <input type="number" className="input-premium" value={empForm.baseSalary} onChange={e => setEmpForm({ ...empForm, baseSalary: e.target.value })} />
+                                        <div className="col-span-2">
+                                            <h4 className="label-premium font-black text-primary-600 border-b border-primary-100 pb-2 mb-4 block uppercase tracking-tighter">Contact & Personal Info</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="label-premium">Mobile Number</label>
+                                                    <input type="number" className="input-premium" value={empForm.phoneNumber} onChange={e => setEmpForm({ ...empForm, phoneNumber: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="label-premium">Office Extension/Mobile</label>
+                                                    <input type="number" className="input-premium" value={empForm.officePhone} onChange={e => setEmpForm({ ...empForm, officePhone: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="label-premium">Personal Email</label>
+                                                    <input type="email" className="input-premium" value={empForm.personalEmail} onChange={e => setEmpForm({ ...empForm, personalEmail: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="label-premium">Emergency Contact</label>
+                                                    <input type="number" className="input-premium" value={empForm.emergencyContact} onChange={e => setEmpForm({ ...empForm, emergencyContact: e.target.value })} />
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <label className="label-premium">Current Address</label>
+                                                    <input type="text" className="input-premium" value={empForm.address} onChange={e => setEmpForm({ ...empForm, address: e.target.value })} />
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <label className="label-premium">Permanent Address</label>
+                                                    <input type="text" className="input-premium" value={empForm.permanentAddress} onChange={e => setEmpForm({ ...empForm, permanentAddress: e.target.value })} />
+                                                </div>
+                                                <div className="col-span-1">
+                                                    <label className="label-premium">Blood Group</label>
+                                                    <input type="text" className="input-premium" value={empForm.bloodGroup} onChange={e => setEmpForm({ ...empForm, bloodGroup: e.target.value })} />
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="label-premium">Bank Name</label>
-                                            <input type="text" className="input-premium" value={empForm.bankName} onChange={e => setEmpForm({ ...empForm, bankName: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">Account Number</label>
-                                            <input type="text" className="input-premium" value={empForm.accountNumber} onChange={e => setEmpForm({ ...empForm, accountNumber: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">IFSC Code</label>
-                                            <input type="text" className="input-premium" value={empForm.ifscCode} onChange={e => setEmpForm({ ...empForm, ifscCode: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">PAN Number</label>
-                                            <input type="text" className="input-premium" value={empForm.panNumber} onChange={e => setEmpForm({ ...empForm, panNumber: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">Aadhar Number</label>
-                                            <input type="text" className="input-premium" value={empForm.aadharNumber} onChange={e => setEmpForm({ ...empForm, aadharNumber: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">UAN Number</label>
-                                            <input type="text" className="input-premium" value={empForm.uanNumber} onChange={e => setEmpForm({ ...empForm, uanNumber: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">PF Number</label>
-                                            <input type="text" className="input-premium" value={empForm.pfNumber} onChange={e => setEmpForm({ ...empForm, pfNumber: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">ESIC Number</label>
-                                            <input type="text" className="input-premium" value={empForm.esicNumber} onChange={e => setEmpForm({ ...empForm, esicNumber: e.target.value })} />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="label-premium">Grade / Level</label>
-                                    <input type="text" className="input-premium" value={empForm.grade} onChange={e => setEmpForm({ ...empForm, grade: e.target.value })} />
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="label-premium font-black text-primary-600 border-b border-primary-100 pb-2 mb-4 block uppercase tracking-tighter">Experience & Qualification</label>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Total Exp (Years/Months)</label>
-                                            <div className="flex gap-2">
-                                                <input type="number" className="input-premium" placeholder="Y" value={empForm.totalExperienceYears} onChange={e => setEmpForm({ ...empForm, totalExperienceYears: parseInt(e.target.value) || 0 })} />
-                                                <input type="number" className="input-premium" placeholder="M" value={empForm.totalExperienceMonths} onChange={e => setEmpForm({ ...empForm, totalExperienceMonths: parseInt(e.target.value) || 0 })} />
+
+                                        <div className="col-span-2">
+                                            <h4 className="label-premium font-black text-primary-600 border-b border-primary-100 pb-2 mb-4 block uppercase tracking-tighter">Financial & Statutory</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="label-premium">Base Salary (Monthly)</label>
+                                                    <input type="number" className="input-premium" value={empForm.baseSalary} onChange={e => setEmpForm({ ...empForm, baseSalary: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="label-premium">Bank Name</label>
+                                                    <input type="text" className="input-premium" value={empForm.bankName} onChange={e => setEmpForm({ ...empForm, bankName: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="label-premium">Account Number</label>
+                                                    <input type="text" className="input-premium" value={empForm.accountNumber} onChange={e => setEmpForm({ ...empForm, accountNumber: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="label-premium">IFSC Code</label>
+                                                    <input type="text" className="input-premium" value={empForm.ifscCode} onChange={e => setEmpForm({ ...empForm, ifscCode: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="label-premium">PAN Number</label>
+                                                    <input type="text" className="input-premium" value={empForm.panNumber} onChange={e => setEmpForm({ ...empForm, panNumber: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="label-premium">Aadhar Number</label>
+                                                    <input type="text" className="input-premium" value={empForm.aadharNumber} onChange={e => setEmpForm({ ...empForm, aadharNumber: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="label-premium">UAN Number</label>
+                                                    <input type="text" className="input-premium" value={empForm.uanNumber} onChange={e => setEmpForm({ ...empForm, uanNumber: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="label-premium">PF Number</label>
+                                                    <input type="text" className="input-premium" value={empForm.pfNumber} onChange={e => setEmpForm({ ...empForm, pfNumber: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="label-premium">ESIC Number</label>
+                                                    <input type="text" className="input-premium" value={empForm.esicNumber} onChange={e => setEmpForm({ ...empForm, esicNumber: e.target.value })} />
+                                                </div>
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="text-[10px] font-bold text-primary-500 uppercase">Relevant Exp (Years/Months)</label>
-                                            <div className="flex gap-2">
-                                                <input type="number" className="input-premium border-primary-100" placeholder="Y" value={empForm.relevantExperienceYears} onChange={e => setEmpForm({ ...empForm, relevantExperienceYears: parseInt(e.target.value) || 0 })} />
-                                                <input type="number" className="input-premium border-primary-100" placeholder="M" value={empForm.relevantExperienceMonths} onChange={e => setEmpForm({ ...empForm, relevantExperienceMonths: parseInt(e.target.value) || 0 })} />
+                                            <label className="label-premium">Grade / Level</label>
+                                            <input type="text" className="input-premium" value={empForm.grade} onChange={e => setEmpForm({ ...empForm, grade: e.target.value })} />
+                                        </div>
+                                        <div>
+                                            <label className="label-premium">Date of Joining</label>
+                                            <input type="date" className="input-premium" value={empForm.dateOfJoining} onChange={e => setEmpForm({ ...empForm, dateOfJoining: e.target.value })} />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className="label-premium font-black text-primary-600 border-b border-primary-100 pb-2 mb-4 block uppercase tracking-tighter">Experience & Qualification</label>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-secondary-500 uppercase">Total Exp (Years/Months)</label>
+                                                    <div className="flex gap-2">
+                                                        <input type="number" className="input-premium" placeholder="Y" value={empForm.totalExperienceYears} onChange={e => setEmpForm({ ...empForm, totalExperienceYears: parseInt(e.target.value) || 0 })} />
+                                                        <input type="number" className="input-premium" placeholder="M" value={empForm.totalExperienceMonths} onChange={e => setEmpForm({ ...empForm, totalExperienceMonths: parseInt(e.target.value) || 0 })} />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-primary-500 uppercase">Relevant Exp (Years/Months)</label>
+                                                    <div className="flex gap-2">
+                                                        <input type="number" className="input-premium border-primary-100" placeholder="Y" value={empForm.relevantExperienceYears} onChange={e => setEmpForm({ ...empForm, relevantExperienceYears: parseInt(e.target.value) || 0 })} />
+                                                        <input type="number" className="input-premium border-primary-100" placeholder="M" value={empForm.relevantExperienceMonths} onChange={e => setEmpForm({ ...empForm, relevantExperienceMonths: parseInt(e.target.value) || 0 })} />
+                                                    </div>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <label className="text-[10px] font-bold text-secondary-500 uppercase">Educational Qualification</label>
+                                                    <input type="text" className="input-premium" value={empForm.qualification} onChange={e => setEmpForm({ ...empForm, qualification: e.target.value })} />
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="col-span-2">
-                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Educational Qualification</label>
-                                            <input type="text" className="input-premium" value={empForm.qualification} onChange={e => setEmpForm({ ...empForm, qualification: e.target.value })} />
+                                            <label className="label-premium font-black text-warning-600 border-b border-warning-100 pb-2 mb-4 block uppercase tracking-tighter">Growth & Review Track</label>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Promotion Date</label>
+                                                    <input type="date" className="input-premium" value={empForm.lastPromotionDate} onChange={e => setEmpForm({ ...empForm, lastPromotionDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Increment Date</label>
+                                                    <input type="date" className="input-premium" value={empForm.lastIncrementDate} onChange={e => setEmpForm({ ...empForm, lastIncrementDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Increment %</label>
+                                                    <input type="number" step="0.01" className="input-premium" value={empForm.lastIncrementPercentage} onChange={e => setEmpForm({ ...empForm, lastIncrementPercentage: parseFloat(e.target.value) || 0 })} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-warning-600 uppercase">Next Review Date</label>
+                                                    <input type="date" className="input-premium border-warning-200" value={empForm.nextReviewDate} onChange={e => setEmpForm({ ...empForm, nextReviewDate: e.target.value })} />
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="label-premium font-black text-warning-600 border-b border-warning-100 pb-2 mb-4 block uppercase tracking-tighter">Growth & Review Track</label>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Promotion Date</label>
-                                            <input type="date" className="input-premium" value={empForm.lastPromotionDate} onChange={e => setEmpForm({ ...empForm, lastPromotionDate: e.target.value })} />
+                                        <div className="col-span-2">
+                                            <label className="label-premium text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-2 block">Key Responsibility Areas (KRA)</label>
+                                            <textarea
+                                                rows={3}
+                                                className="input-premium"
+                                                placeholder="Enter KRA points (one per line)..."
+                                                value={empForm.kra}
+                                                onChange={e => setEmpForm({ ...empForm, kra: e.target.value })}
+                                            />
                                         </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Increment Date</label>
-                                            <input type="date" className="input-premium" value={empForm.lastIncrementDate} onChange={e => setEmpForm({ ...empForm, lastIncrementDate: e.target.value })} />
+                                        <div className="col-span-2">
+                                            <label className="label-premium text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-2 block">Job Description (Detailed)</label>
+                                            <textarea
+                                                rows={4}
+                                                className="input-premium"
+                                                placeholder="Detailed job description..."
+                                                value={empForm.jobDescription}
+                                                onChange={e => setEmpForm({ ...empForm, jobDescription: e.target.value })}
+                                            />
                                         </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Increment %</label>
-                                            <input type="number" step="0.01" className="input-premium" value={empForm.lastIncrementPercentage} onChange={e => setEmpForm({ ...empForm, lastIncrementPercentage: parseFloat(e.target.value) || 0 })} />
+                                        <div className="col-span-2 grid grid-cols-2 gap-4 border-t border-secondary-50 pt-6">
+                                            <div>
+                                                <label className="label-premium text-[10px]">Offer Letter URL</label>
+                                                <input type="text" className="input-premium" placeholder="https://..." value={empForm.offerLetterUrl} onChange={e => setEmpForm({ ...empForm, offerLetterUrl: e.target.value })} />
+                                            </div>
+                                            <div>
+                                                <label className="label-premium text-[10px]">Contract URL</label>
+                                                <input type="text" className="input-premium" placeholder="https://..." value={empForm.contractUrl} onChange={e => setEmpForm({ ...empForm, contractUrl: e.target.value })} />
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-warning-600 uppercase">Next Review Date</label>
-                                            <input type="date" className="input-premium border-warning-200" value={empForm.nextReviewDate} onChange={e => setEmpForm({ ...empForm, nextReviewDate: e.target.value })} />
+                                        <div className="col-span-2 pt-6 flex gap-4">
+                                            <button type="submit" className="btn btn-primary flex-1 py-4 text-sm font-black uppercase tracking-widest shadow-lg">Save Record</button>
+                                            <button type="button" onClick={() => setShowEmpModal(false)} className="btn btn-secondary px-8">Cancel</button>
                                         </div>
-                                    </div>
+                                    </form>
                                 </div>
-                                <div className="col-span-2">
-                                    <label className="label-premium text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-2 block">Key Responsibility Areas (KRA)</label>
-                                    <textarea
-                                        rows={3}
-                                        className="input-premium"
-                                        placeholder="Enter KRA points (one per line)..."
-                                        value={empForm.kra}
-                                        onChange={e => setEmpForm({ ...empForm, kra: e.target.value })}
-                                    />
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="label-premium text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-2 block">Job Description (Detailed)</label>
-                                    <textarea
-                                        rows={4}
-                                        className="input-premium"
-                                        placeholder="Detailed job description..."
-                                        value={empForm.jobDescription}
-                                        onChange={e => setEmpForm({ ...empForm, jobDescription: e.target.value })}
-                                    />
-                                </div>
-                                <div className="col-span-2 grid grid-cols-2 gap-4 border-t border-secondary-50 pt-6">
-                                    <div>
-                                        <label className="label-premium text-[10px]">Offer Letter URL</label>
-                                        <input type="text" className="input-premium" placeholder="https://..." value={empForm.offerLetterUrl} onChange={e => setEmpForm({ ...empForm, offerLetterUrl: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label className="label-premium text-[10px]">Contract URL</label>
-                                        <input type="text" className="input-premium" placeholder="https://..." value={empForm.contractUrl} onChange={e => setEmpForm({ ...empForm, contractUrl: e.target.value })} />
-                                    </div>
-                                </div>
-                                <div className="col-span-2 pt-6 flex gap-4">
-                                    <button type="submit" className="btn btn-primary flex-1 py-4 text-sm font-black uppercase tracking-widest shadow-lg">Save Record</button>
-                                    <button type="button" onClick={() => setShowEmpModal(false)} className="btn btn-secondary px-8">Cancel</button>
-                                </div>
-                            </form>
-                        </div>
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
         </DashboardLayout>
     );

@@ -1468,6 +1468,7 @@ model RecruitmentInterview {
   scheduledAt DateTime?
   status      String    @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELLED
   result      String    @default("PENDING") // PENDING, PASSED, FAILED
+  score       Int?      // Rating 1-10
   feedback    String?
 
   createdAt DateTime @default(now())

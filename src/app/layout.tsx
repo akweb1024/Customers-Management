@@ -8,6 +8,9 @@ export const metadata: Metadata = {
 
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 
+import QueryProvider from '@/components/providers/QueryProvider';
+import AuthProvider from '@/components/providers/AuthProvider';
+
 export default function RootLayout({
     children,
 }: {
@@ -16,9 +19,13 @@ export default function RootLayout({
     return (
         <html lang="en" suppressHydrationWarning>
             <body className="antialiased" suppressHydrationWarning>
-                <ThemeProvider>
-                    {children}
-                </ThemeProvider>
+                <QueryProvider>
+                    <AuthProvider>
+                        <ThemeProvider>
+                            {children}
+                        </ThemeProvider>
+                    </AuthProvider>
+                </QueryProvider>
             </body>
         </html>
     );

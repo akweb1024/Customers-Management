@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { signIn } from 'next-auth/react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import FormattedDate from '@/components/common/FormattedDate';
 import DataTransferActions from '@/components/dashboard/DataTransferActions';
@@ -227,21 +228,40 @@ export default function UsersPage() {
 
             if (res.ok) {
                 const data = await res.json();
-                // Store original admin token to revert back
-                localStorage.setItem('adminToken', token!);
-                localStorage.setItem('adminUser', localStorage.getItem('user')!);
 
-                // Set impersonated credentials
+                // 1. Establish NextAuth Session using the token
+                const result = await signIn('credentials', {
+                    token: data.token,
+                    redirect: false
+                });
+
+                if (result?.error) {
+                    alert('Session establishment failed: ' + result.error);
+                    return;
+                }
+
+                // 2. Store original admin token to revert back
+                // Only store if not already impersonating
+                if (!localStorage.getItem('adminToken')) {
+                    localStorage.setItem('adminToken', token!);
+                    if (localStorage.getItem('user')) {
+                        localStorage.setItem('adminUser', localStorage.getItem('user')!);
+                    }
+                }
+
+                // 3. Set impersonated credentials locally
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('user', JSON.stringify(data.user));
 
+                // 4. Reload to apply session
                 window.location.href = '/dashboard';
             } else {
                 const err = await res.json();
                 alert(err.error || 'Failed to impersonate');
             }
         } catch (err) {
-            alert('Impersonation error');
+            console.error('Impersonation error:', err);
+            alert('Impersonation error encountered');
         }
     };
 

@@ -1,150 +1,153 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
 import bcrypt from 'bcryptjs';
 
-export async function GET(req: NextRequest) {
-    try {
-        const decoded = await getAuthenticatedUser();
-        if (!decoded || !['SUPER_ADMIN', 'MANAGER'].includes(decoded.role)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+export const GET = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEAM_LEADER'],
+    async (req: NextRequest, user) => {
+        try {
+            const { searchParams } = new URL(req.url);
+            const companyId = searchParams.get('companyId') || user.companyId;
+            const page = parseInt(searchParams.get('page') || '1');
+            const limit = parseInt(searchParams.get('limit') || '20');
+            const search = searchParams.get('search') || '';
+            const skip = (page - 1) * limit;
 
-        const { searchParams } = new URL(req.url);
-        const companyId = searchParams.get('companyId');
-        const page = parseInt(searchParams.get('page') || '1');
-        const limit = parseInt(searchParams.get('limit') || '20');
-        const search = searchParams.get('search') || '';
-        const skip = (page - 1) * limit;
+            const where: any = {};
 
-        const where: any = {};
-        if (decoded.role === 'MANAGER') {
-            where.managerId = decoded.id;
-        }
+            // Role-based visibility
+            if (user.role === 'MANAGER' || user.role === 'TEAM_LEADER') {
+                where.OR = [
+                    { managerId: user.id },
+                    { id: user.id }
+                ];
+            }
 
-        if (companyId) {
-            where.companyId = companyId;
-        }
+            if (companyId && user.role !== 'SUPER_ADMIN') {
+                where.companyId = companyId;
+            } else if (companyId && user.role === 'SUPER_ADMIN') {
+                where.companyId = companyId;
+            }
 
-        if (search) {
-            where.OR = [
-                { email: { contains: search, mode: 'insensitive' } },
-                { role: { contains: search, mode: 'insensitive' } }
-            ];
-        }
+            if (search) {
+                const searchClause = [
+                    { email: { contains: search, mode: 'insensitive' } },
+                    { role: { contains: search, mode: 'insensitive' } }
+                ];
+                if (where.OR) {
+                    where.AND = [
+                        { OR: where.OR },
+                        { OR: searchClause }
+                    ];
+                    delete where.OR;
+                } else {
+                    where.OR = searchClause;
+                }
+            }
 
-        const [users, total] = await Promise.all([
-            prisma.user.findMany({
-                where,
-                skip,
-                take: limit,
-                orderBy: { createdAt: 'desc' },
-                include: {
-                    manager: {
-                        select: {
-                            id: true,
-                            email: true,
-                            role: true
-                        }
-                    },
-                    _count: {
-                        select: {
-                            assignedSubscriptions: true,
-                            tasks: true
+            const [users, total] = await Promise.all([
+                prisma.user.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        manager: {
+                            select: {
+                                id: true,
+                                email: true,
+                                role: true
+                            }
+                        },
+                        _count: {
+                            select: {
+                                assignedSubscriptions: true,
+                                tasks: true
+                            }
                         }
                     }
+                }),
+                prisma.user.count({ where })
+            ]);
+
+            const safeUsers = users.map((u: any) => {
+                const { password, ...safeUser } = u;
+                return safeUser;
+            });
+
+            return NextResponse.json({
+                data: safeUsers,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit)
                 }
-            }),
-            prisma.user.count({ where })
-        ]);
-
-        // Don't send passwords
-        const safeUsers = users.map((user: any) => {
-            const { password, ...safeUser } = user;
-            return safeUser;
-        });
-
-        return NextResponse.json({
-            data: safeUsers,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit)
-            }
-        });
-
-    } catch (error: any) {
-        console.error('Fetch Users Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+            });
+        } catch (error: any) {
+            console.error('Fetch Users Error:', error);
+            return createErrorResponse('Internal Server Error', 500);
+        }
     }
-}
+);
 
-export async function POST(req: NextRequest) {
-    try {
-        const decoded = await getAuthenticatedUser();
-        if (!decoded || !['SUPER_ADMIN', 'MANAGER'].includes(decoded.role)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+export const POST = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    async (req: NextRequest, user) => {
+        try {
+            const body = await req.json();
+            const { email, password, role, managerId, companyId, companyIds } = body;
 
-        const body = await req.json();
-        const { email, password, role, managerId, companyId, companyIds } = body;
-
-        if (!email || !password || !role) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-        }
-
-        const existing = await prisma.user.findUnique({ where: { email } });
-        if (existing) {
-            return NextResponse.json({ error: 'User already exists' }, { status: 409 });
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Determine company context
-        let targetCompanyId = companyId;
-        if (!targetCompanyId && decoded.role !== 'SUPER_ADMIN') {
-            const currentUser = await prisma.user.findUnique({ where: { id: decoded.id } });
-            targetCompanyId = currentUser?.companyId;
-        }
-
-        const user = await prisma.user.create({
-            data: {
-                email,
-                password: hashedPassword,
-                role,
-                isActive: true,
-                companyId: targetCompanyId,
-                managerId: managerId || (decoded.role === 'MANAGER' ? decoded.id : undefined),
-                // Assign to multiple companies if provided
-                companies: companyIds ? {
-                    connect: companyIds.map((id: string) => ({ id }))
-                } : (targetCompanyId ? {
-                    connect: [{ id: targetCompanyId }]
-                } : undefined),
-                // Auto-create profile for staff roles
-                employeeProfile: !['CUSTOMER', 'AGENCY'].includes(role) ? {
-                    create: {}
-                } : undefined
+            if (!email || !password || !role) {
+                return createErrorResponse('Missing required fields', 400);
             }
-        });
 
-        // Audit Log
-        await prisma.auditLog.create({
-            data: {
-                userId: decoded.id,
-                action: 'create',
-                entity: 'user',
-                entityId: user.id,
-                changes: JSON.stringify({ email, role })
+            const existing = await prisma.user.findUnique({ where: { email } });
+            if (existing) {
+                return createErrorResponse('User already exists', 409);
             }
-        });
 
-        const { password: _, ...safeUser } = user;
-        return NextResponse.json(safeUser);
+            const hashedPassword = await bcrypt.hash(password, 10);
 
-    } catch (error: any) {
-        console.error('Create User Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+            // Determine company context
+            let targetCompanyId = companyId || user.companyId;
+
+            const newUser = await prisma.user.create({
+                data: {
+                    email,
+                    password: hashedPassword,
+                    role,
+                    isActive: true,
+                    companyId: targetCompanyId,
+                    managerId: managerId || (['MANAGER', 'TEAM_LEADER'].includes(user.role) ? user.id : undefined),
+                    companies: companyIds ? {
+                        connect: companyIds.map((id: string) => ({ id }))
+                    } : (targetCompanyId ? {
+                        connect: [{ id: targetCompanyId }]
+                    } : undefined),
+                    employeeProfile: !['CUSTOMER', 'AGENCY'].includes(role) ? {
+                        create: {}
+                    } : undefined
+                }
+            });
+
+            await prisma.auditLog.create({
+                data: {
+                    userId: user.id,
+                    action: 'create',
+                    entity: 'user',
+                    entityId: newUser.id,
+                    changes: { email, role }
+                }
+            });
+
+            const { password: _, ...safeUser } = newUser;
+            return NextResponse.json(safeUser);
+        } catch (error: any) {
+            console.error('Create User Error:', error);
+            return createErrorResponse('Internal Server Error', 500);
+        }
     }
-}
+);

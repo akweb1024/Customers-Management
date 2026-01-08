@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { createErrorResponse } from '@/lib/api-utils';
 
 export async function POST(req: NextRequest) {
     try {
@@ -22,6 +22,6 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ ...application, examLink });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return createErrorResponse(error);
     }
 }

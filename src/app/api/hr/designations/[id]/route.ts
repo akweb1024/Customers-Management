@@ -1,51 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    try {
-        const { id: designationId } = await params;
-        const decoded = await getAuthenticatedUser();
-        if (!decoded || !['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(decoded.role)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+export const PATCH = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    async (req: NextRequest, user, { params }) => {
+        try {
+            const { id: designationId } = await params;
+            const body = await req.json();
+
+            const updated = await prisma.designation.update({
+                where: { id: designationId },
+                data: {
+                    name: body.name,
+                    code: body.code,
+                    jobDescription: body.jobDescription,
+                    kra: body.kra,
+                    expectedExperience: body.expectedExperience ? parseFloat(body.expectedExperience) : undefined,
+                    promotionWaitPeriod: body.promotionWaitPeriod ? parseInt(body.promotionWaitPeriod) : undefined,
+                    incrementGuidelines: body.incrementGuidelines,
+                    level: body.level ? parseInt(body.level) : undefined
+                }
+            });
+
+            return NextResponse.json(updated);
+        } catch (error) {
+            return createErrorResponse(error);
         }
-
-        const body = await req.json();
-
-        const updated = await prisma.designation.update({
-            where: { id: designationId },
-            data: {
-                name: body.name,
-                code: body.code,
-                jobDescription: body.jobDescription,
-                kra: body.kra,
-                expectedExperience: parseFloat(body.expectedExperience),
-                promotionWaitPeriod: parseInt(body.promotionWaitPeriod),
-                incrementGuidelines: body.incrementGuidelines,
-                level: parseInt(body.level)
-            }
-        });
-
-        return NextResponse.json(updated);
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
     }
-}
+);
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    try {
-        const { id } = await params;
-        const decoded = await getAuthenticatedUser();
-        if (!decoded || !['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(decoded.role)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+export const DELETE = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    async (req: NextRequest, user, { params }) => {
+        try {
+            const { id } = await params;
+
+            await prisma.designation.delete({
+                where: { id: id }
+            });
+
+            return NextResponse.json({ success: true });
+        } catch (error) {
+            return createErrorResponse(error);
         }
-
-        await prisma.designation.delete({
-            where: { id: id }
-        });
-
-        return NextResponse.json({ success: true });
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
     }
-}
+);

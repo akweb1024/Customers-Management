@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useCRMMutations } from '@/hooks/useCRM';
 
 interface CommunicationFormProps {
     customerId: string;
@@ -9,6 +10,8 @@ interface CommunicationFormProps {
 export default function CommunicationForm({ customerId, previousFollowUpId, onSuccess }: CommunicationFormProps) {
     const [type, setType] = useState('COMMENT');
     const [loading, setLoading] = useState(false);
+
+    const { createCommunication } = useCRMMutations();
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -33,31 +36,15 @@ export default function CommunicationForm({ customerId, previousFollowUpId, onSu
         }
 
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/communications', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (res.ok) {
-                alert('Communication logged successfully!');
-                form.reset();
-                setType('COMMENT'); // Reset type
-                if (onSuccess) {
-                    onSuccess();
-                } else {
-                    window.location.reload();
-                }
-            } else {
-                const err = await res.json();
-                alert(err.error || 'Failed to log communication');
+            await createCommunication.mutateAsync(payload);
+            alert('Communication logged successfully!');
+            form.reset();
+            setType('COMMENT'); // Reset type
+            if (onSuccess) {
+                onSuccess();
             }
-        } catch (err) {
-            alert('Network error');
+        } catch (err: any) {
+            alert(err.message || 'Failed to log communication');
         } finally {
             setLoading(false);
         }

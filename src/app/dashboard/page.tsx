@@ -7,11 +7,12 @@ import Link from 'next/link';
 import BulletinBoard from '@/components/dashboard/BulletinBoard';
 import MarketMonitor from '@/components/dashboard/MarketMonitor';
 import AIInsightsWidget from '@/components/dashboard/AIInsightsWidget';
+import { useSession } from 'next-auth/react';
 
 export default function DashboardPage() {
     const router = useRouter();
-    const [user, setUser] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+    const { data: session, status } = useSession();
+    const [loadingData, setLoadingData] = useState(false);
     const [data, setData] = useState<any>({
         stats: [],
         recentActivities: [],
@@ -21,22 +22,16 @@ export default function DashboardPage() {
     const [error, setError] = useState<string | null>(null);
 
     const fetchDashboardData = async () => {
-        setLoading(true);
+        setLoadingData(true);
         setError(null);
         try {
-            const token = localStorage.getItem('token');
-            if (!token) return;
-
             // Create a timeout promise to prevent hanging
             const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('Request timed out')), 10000)
             );
 
-            const fetchPromise = fetch('/api/dashboard/stats', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            // Note: NextAuth cookies are sent automatically
+            const fetchPromise = fetch('/api/dashboard/stats');
 
             const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
 
@@ -52,30 +47,24 @@ export default function DashboardPage() {
             console.error('Error fetching dashboard data:', error);
             setError(error.message || 'Failed to load dashboard data');
         } finally {
-            setLoading(false);
+            setLoadingData(false);
         }
     };
 
     useEffect(() => {
-        // Check authentication
-        const token = localStorage.getItem('token');
-        const userData = localStorage.getItem('user');
-
-        if (!token || !userData) {
+        if (status === 'unauthenticated') {
             router.push('/login');
-            return;
+        } else if (status === 'authenticated') {
+            fetchDashboardData();
         }
+    }, [status, router]);
 
-        setUser(JSON.parse(userData));
-        fetchDashboardData();
-    }, [router]);
-
-    if (loading) {
+    if (status === 'loading' || loadingData) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-secondary-50">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-                    <p className="text-secondary-600 font-medium">Crunching your subscription data...</p>
+                    <p className="text-secondary-600 font-medium">Crunching your dashboard data...</p>
                 </div>
             </div>
         );
@@ -100,29 +89,79 @@ export default function DashboardPage() {
     }
 
     const { stats, recentActivities, upcomingRenewals } = data;
+    const userRole = (session?.user as any)?.role;
+    const userName = session?.user?.name || session?.user?.email?.split('@')[0] || 'User';
 
     return (
-        <DashboardLayout userRole={user?.role}>
+        <DashboardLayout userRole={userRole}>
             <div className="space-y-6">
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-secondary-900">
-                            Welcome back, {user?.customerProfile?.name || user?.employeeProfile?.designation || user?.email?.split('@')[0] || 'User'}!
+                            Welcome back, {userName}!
                         </h1>
                         <p className="text-secondary-600 mt-1">
-                            Here&apos;s what&apos;s happening with your subscriptions today
+                            {['CUSTOMER', 'AGENCY'].includes(userRole)
+                                ? "Here's what's happening with your subscriptions today"
+                                : "Here's your professional overview for today"}
                         </p>
                     </div>
                     <div className="mt-4 sm:mt-0">
-                        <Link href="/dashboard/subscriptions/new" className="btn btn-primary">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                            New Subscription
-                        </Link>
+                        {['CUSTOMER', 'AGENCY'].includes(userRole) ? (
+                            <Link href="/dashboard/subscriptions/new" className="btn btn-primary">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                New Subscription
+                            </Link>
+                        ) : (
+                            <Link href="/dashboard/staff-portal" className="btn btn-primary">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                My Staff Portal
+                            </Link>
+                        )}
                     </div>
                 </div>
+
+                {/* HR Quick Stats for Staff */}
+                {data.hrStats && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="stat-card border-l-4 border-primary-500">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-2xl">🕒</span>
+                                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${data.hrStats.hasCheckedIn ? 'bg-success-100 text-success-700' : 'bg-warning-100 text-warning-700'}`}>
+                                    {data.hrStats.hasCheckedIn ? 'Checked In' : 'Not Checked In'}
+                                </span>
+                            </div>
+                            <h3 className="text-secondary-500 text-xs font-bold uppercase tracking-wider">Attendance</h3>
+                            <p className="text-2xl font-black text-secondary-900 mt-1">{data.hrStats.totalAttendance} Days</p>
+                        </div>
+                        <div className="stat-card border-l-4 border-success-500">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-2xl">📝</span>
+                            </div>
+                            <h3 className="text-secondary-500 text-xs font-bold uppercase tracking-wider">Work Reports</h3>
+                            <p className="text-2xl font-black text-secondary-900 mt-1">{data.hrStats.totalReports} Filed</p>
+                        </div>
+                        <div className="stat-card border-l-4 border-warning-500">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-2xl">🏝️</span>
+                            </div>
+                            <h3 className="text-secondary-500 text-xs font-bold uppercase tracking-wider">Pending Leaves</h3>
+                            <p className="text-2xl font-black text-secondary-900 mt-1">{data.hrStats.pendingLeaves} Requests</p>
+                        </div>
+                        <div className="stat-card border-l-4 border-indigo-500">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-2xl">🎓</span>
+                            </div>
+                            <h3 className="text-secondary-500 text-xs font-bold uppercase tracking-wider">LMS Progress</h3>
+                            <p className="text-2xl font-black text-secondary-900 mt-1">On Track</p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -173,9 +212,9 @@ export default function DashboardPage() {
                     {/* Sidebar Column - Right 1/3 */}
                     <div className="space-y-6">
                         {/* Executive AI & Market Widgets */}
-                        {['SUPER_ADMIN', 'MANAGER', 'FINANCE_ADMIN'].includes(user?.role) && (
+                        {['SUPER_ADMIN', 'MANAGER', 'FINANCE_ADMIN'].includes(userRole) && (
                             <>
-                                <AIInsightsWidget role={user?.role} />
+                                <AIInsightsWidget role={userRole} />
                                 <MarketMonitor />
                             </>
                         )}
@@ -189,7 +228,7 @@ export default function DashboardPage() {
                         </div>
 
                         {/* Subscription Request Banner for Customers */}
-                        {user?.role === 'CUSTOMER' ? (
+                        {userRole === 'CUSTOMER' ? (
                             <div className="card-premium bg-gradient-to-br from-primary-600 to-primary-800 text-white border-0">
                                 <div className="h-full flex flex-col justify-between">
                                     <div>
@@ -257,49 +296,31 @@ export default function DashboardPage() {
                             <span className="text-xs font-bold uppercase tracking-widest text-secondary-900">New Subscription</span>
                         </Link>
 
-                        {user?.role !== 'CUSTOMER' && (
+                        {userRole !== 'CUSTOMER' && (
                             <Link href="/dashboard/customers/new" className="flex flex-col items-center justify-center p-6 bg-secondary-50 rounded-lg hover:bg-secondary-100 transition-colors text-center">
                                 <span className="text-3xl mb-2">👥</span>
-                                <span className="text-xs font-bold uppercase tracking-widest text-secondary-900">Add {user?.role === 'AGENCY' ? 'Client' : 'Customer'}</span>
+                                <span className="text-xs font-bold uppercase tracking-widest text-secondary-900">Add {userRole === 'AGENCY' ? 'Client' : 'Customer'}</span>
                             </Link>
                         )}
 
-                        {['SUPER_ADMIN', 'MANAGER', 'SALES_EXECUTIVE'].includes(user?.role) && (
-                            <Link href="/dashboard/customers" className="flex flex-col items-center justify-center p-6 bg-secondary-50 rounded-lg hover:bg-secondary-100 transition-colors text-center">
-                                <span className="text-3xl mb-2">💬</span>
-                                <span className="text-xs font-bold uppercase tracking-widest text-secondary-900">Log Activity</span>
+                        {['SUPER_ADMIN', 'MANAGER', 'SALES_EXECUTIVE', 'TEAM_LEADER'].includes(userRole) && (
+                            <Link href="/dashboard/customers" className="flex flex-col items-center justify-center p-6 bg-white border border-secondary-100 rounded-2xl hover:bg-secondary-50 transition-all text-center group shadow-sm">
+                                <span className="text-3xl mb-3 group-hover:scale-110 transition-transform">💬</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-secondary-500">Log Activity</span>
                             </Link>
                         )}
 
-                        {['SUPER_ADMIN', 'MANAGER', 'FINANCE_ADMIN'].includes(user?.role) && (
-                            <Link href="/dashboard/analytics" className="flex flex-col items-center justify-center p-6 bg-secondary-50 rounded-lg hover:bg-secondary-100 transition-colors text-center">
-                                <span className="text-3xl mb-2">📊</span>
-                                <span className="text-xs font-bold uppercase tracking-widest text-secondary-900">Reports</span>
-                            </Link>
-                        )}
-
-                        {user?.role === 'CUSTOMER' && (
+                        {!['CUSTOMER', 'AGENCY'].includes(userRole) && (
                             <>
-                                <Link href="/dashboard/tickets" className="flex flex-col items-center justify-center p-6 bg-secondary-50 rounded-lg hover:bg-secondary-100 transition-colors text-center">
-                                    <span className="text-3xl mb-2">❓</span>
-                                    <span className="text-xs font-bold uppercase tracking-widest text-secondary-900">Get Help</span>
+                                <Link href="/dashboard/staff-portal" className="flex flex-col items-center justify-center p-6 bg-white border border-secondary-100 rounded-2xl hover:bg-secondary-50 transition-all text-center group shadow-sm">
+                                    <span className="text-3xl mb-3 group-hover:scale-110 transition-transform">🏢</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-secondary-500">Punch Attendance</span>
                                 </Link>
-                                <Link href="/dashboard/invoices" className="flex flex-col items-center justify-center p-6 bg-secondary-50 rounded-lg hover:bg-secondary-100 transition-colors text-center">
-                                    <span className="text-3xl mb-2">🧾</span>
-                                    <span className="text-xs font-bold uppercase tracking-widest text-secondary-900">My Invoices</span>
-                                </Link>
-                                <Link href="/dashboard/profile" className="flex flex-col items-center justify-center p-6 bg-secondary-50 rounded-lg hover:bg-secondary-100 transition-colors text-center">
-                                    <span className="text-3xl mb-2">👤</span>
-                                    <span className="text-xs font-bold uppercase tracking-widest text-secondary-900">Settings</span>
+                                <Link href="/dashboard/staff-portal" className="flex flex-col items-center justify-center p-6 bg-white border border-secondary-100 rounded-2xl hover:bg-secondary-50 transition-all text-center group shadow-sm">
+                                    <span className="text-3xl mb-3 group-hover:scale-110 transition-transform">📝</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-secondary-500">Daily Report</span>
                                 </Link>
                             </>
-                        )}
-
-                        {user?.role === 'AGENCY' && (
-                            <Link href="/dashboard/commission" className="flex flex-col items-center justify-center p-6 bg-secondary-50 rounded-lg hover:bg-secondary-100 transition-colors text-center">
-                                <span className="text-3xl mb-2">💰</span>
-                                <span className="text-xs font-bold uppercase tracking-widest text-secondary-900">Earnings</span>
-                            </Link>
                         )}
                     </div>
                 </div>

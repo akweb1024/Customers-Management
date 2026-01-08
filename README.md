@@ -5,6 +5,8 @@ A comprehensive web application for managing journal subscriptions, customers, s
 ## 🚀 Features
 
 ### Phase 1, 2, 3 & 4 - Currently Implemented
+- ✅ **NextAuth Integration**: Secure authentication with NextAuth.js v5, session management, and role-based access control.
+- ✅ **HR Management System**: Complete employee lifecycle management with profiles, attendance, performance reviews, and salary tracking.
 - ✅ **Institution-Centric Architecture**: Unified dashboards for universities/libraries with bulk member assignment.
 - ✅ **Advanced Data Hub**: Bulk CSV Import/Export for Institutions, Customers, Journals, and Subscriptions.
 - ✅ **Dynamic Assignment Manager**: Multi-executive assignment tracking (Primary/Secondary/Support) for customers.
@@ -16,10 +18,12 @@ A comprehensive web application for managing journal subscriptions, customers, s
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 14 (React), TypeScript, Tailwind CSS
+- **Frontend**: Next.js 15 (React), TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes
-- **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: JWT with bcrypt password hashing
+- **Database**: PostgreSQL with Prisma ORM v7
+- **Authentication**: NextAuth.js v5 (Beta) with JWT strategy
+- **Validation**: Zod schemas for type-safe validation
+- **State Management**: React Query for server state
 - **Styling**: Tailwind CSS with custom design system
 
 ## 📦 Installation
@@ -160,10 +164,24 @@ npm run lint         # Run ESLint
 Create a `.env` file based on `.env.example`:
 
 ```env
+# Database
 DATABASE_URL="postgresql://user:password@localhost:5432/stm_customer?schema=public"
+
+# NextAuth (Required!)
+AUTH_SECRET="your-generated-secret-at-least-32-chars-long"
+NEXTAUTH_SECRET="your-generated-secret-at-least-32-chars-long"
+NEXTAUTH_URL="http://localhost:3000"
+
+# Legacy JWT (for backward compatibility)
 JWT_SECRET="your-super-secret-jwt-key-change-in-production"
+
+# App Configuration
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 NODE_ENV="development"
+
+# Push Notifications (Optional)
+NEXT_PUBLIC_VAPID_PUBLIC_KEY="your-vapid-public-key"
+VAPID_PRIVATE_KEY="your-vapid-private-key"
 ```
 
 ## 📖 API Endpoints

@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { createErrorResponse } from '@/lib/api-utils';
 
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const applicationId = searchParams.get('applicationId');
 
-        if (!applicationId) return NextResponse.json({ error: 'Missing applicationId' }, { status: 400 });
+        if (!applicationId) return createErrorResponse('Missing applicationId', 400);
 
         const application = await prisma.jobApplication.findUnique({
             where: { id: applicationId },
@@ -19,11 +19,11 @@ export async function GET(req: NextRequest) {
         });
 
         if (!application || !application.jobPosting.exam) {
-            return NextResponse.json({ error: 'Exam not found' }, { status: 404 });
+            return createErrorResponse('Exam not found', 404);
         }
 
         if (application.examAttempt) {
-            return NextResponse.json({ error: 'Exam already attempted', score: application.examAttempt.score }, { status: 400 });
+            return createErrorResponse('Exam already attempted', 400);
         }
 
         // Return questions without correct answers
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
             questions
         });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return createErrorResponse(error);
     }
 }
 
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
         });
 
         if (!application || !application.jobPosting.exam) {
-            return NextResponse.json({ error: 'Exam not found' }, { status: 404 });
+            return createErrorResponse('Exam not found', 404);
         }
 
         const exam = application.jobPosting.exam;
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
         const score = (correctCount / correctAnswers.length) * 100;
         const isPassed = score >= exam.passPercentage;
 
-        const attempt = await prisma.examAttempt.create({
+        await prisma.examAttempt.create({
             data: {
                 applicationId,
                 examId: exam.id,
@@ -87,6 +87,6 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ score, isPassed });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return createErrorResponse(error);
     }
 }

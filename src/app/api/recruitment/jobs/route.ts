@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth-legacy';
+import { jobPostingSchema, updateJobPostingSchema } from '@/lib/validators/hr';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
 
 export async function GET(req: NextRequest) {
     try {
@@ -27,74 +30,70 @@ export async function GET(req: NextRequest) {
         });
         return NextResponse.json(jobs);
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return createErrorResponse(error);
     }
 }
 
-export async function POST(req: NextRequest) {
-    try {
-        const user = await getAuthenticatedUser();
-        if (!user || !['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+export const POST = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    async (req: NextRequest, user) => {
+        try {
+            const body = await req.json();
 
-        const body = await req.json();
-        const { title, description, requirements, location, salaryRange, type, examQuestions, companyId } = body;
+            const validation = jobPostingSchema.safeParse(body);
+            if (!validation.success) {
+                return createErrorResponse(validation.error);
+            }
 
-        const finalCompanyId = companyId || user.companyId;
+            const { examQuestions, ...jobData } = validation.data;
 
-        if (!finalCompanyId) {
-            return NextResponse.json({ error: 'Company ID is required to create a job posting.' }, { status: 400 });
-        }
+            const finalCompanyId = user.companyId;
 
-        const job = await prisma.jobPosting.create({
-            data: {
-                companyId: finalCompanyId,
-                title,
-                description,
-                requirements,
-                location,
-                salaryRange,
-                type,
-                exam: {
-                    create: {
-                        questions: examQuestions || [],
+            if (!finalCompanyId) {
+                return createErrorResponse('Company association required.', 400);
+            }
+
+            const job = await prisma.jobPosting.create({
+                data: {
+                    companyId: finalCompanyId,
+                    ...jobData,
+                    exam: {
+                        create: {
+                            questions: examQuestions || [],
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        return NextResponse.json(job);
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-}
-
-export async function PATCH(req: NextRequest) {
-    try {
-        const user = await getAuthenticatedUser();
-        if (!user || !['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            return NextResponse.json(job);
+        } catch (error: any) {
+            return createErrorResponse(error);
         }
-
-        const body = await req.json();
-        const { id, title, description, requirements, location, salaryRange, type, status } = body;
-
-        const job = await prisma.jobPosting.update({
-            where: { id },
-            data: {
-                title,
-                description,
-                requirements,
-                location,
-                salaryRange,
-                type,
-                status // OPEN, CLOSED, DRAFT
-            }
-        });
-
-        return NextResponse.json(job);
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
     }
-}
+);
+
+export const PATCH = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    async (req: NextRequest, user) => {
+        try {
+            const body = await req.json();
+            const validation = updateJobPostingSchema.safeParse(body);
+
+            if (!validation.success) {
+                return createErrorResponse(validation.error);
+            }
+
+            const { id, ...updates } = validation.data;
+            if (!id) return createErrorResponse('ID is required', 400);
+
+            const job = await prisma.jobPosting.update({
+                where: { id },
+                data: updates
+            });
+
+            return NextResponse.json(job);
+        } catch (error: any) {
+            return createErrorResponse(error);
+        }
+    }
+);

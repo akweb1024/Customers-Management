@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import FormattedDate from '@/components/common/FormattedDate';
+import { useTeam } from '@/hooks/useHR';
 
 export default function TeamPage() {
-    const [team, setTeam] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data: team = [], isLoading: loading } = useTeam();
     const [userRole, setUserRole] = useState('CUSTOMER');
 
     useEffect(() => {
@@ -15,26 +15,7 @@ export default function TeamPage() {
             const user = JSON.parse(userData);
             setUserRole(user.role);
         }
-        fetchTeam();
     }, []);
-
-    const fetchTeam = async () => {
-        setLoading(true);
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/team', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setTeam(data);
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     return (
         <DashboardLayout userRole={userRole}>
@@ -56,7 +37,7 @@ export default function TeamPage() {
                                     {member.email.charAt(0).toUpperCase()}
                                 </div>
                                 <span className={`badge ${member.role === 'SUPER_ADMIN' ? 'badge-primary' :
-                                        member.role === 'MANAGER' ? 'badge-success' : 'badge-secondary'
+                                    member.role === 'MANAGER' ? 'badge-success' : 'badge-secondary'
                                     }`}>
                                     {member.role.replace('_', ' ')}
                                 </span>

@@ -1,11 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import FormattedDate from '@/components/common/FormattedDate';
 import OnboardingManager from '@/components/dashboard/OnboardingManager';
 import DocumentManager from '@/components/dashboard/DocumentManager';
-import { Briefcase, Info, Target, TrendingUp, Award, GraduationCap } from 'lucide-react';
+import EmployeeList from '@/components/dashboard/hr/EmployeeList';
+import EmployeeModal from '@/components/dashboard/hr/EmployeeModal';
+import HolidayManager from '@/components/dashboard/hr/HolidayManager';
+import RecruitmentBoard from '@/components/dashboard/hr/RecruitmentBoard';
+import JobPostingModal from '@/components/dashboard/hr/JobPostingModal';
+import PerformanceReviewModal from '@/components/dashboard/hr/PerformanceReviewModal';
+import AttendanceModal from '@/components/dashboard/hr/AttendanceModal';
+import { Briefcase, Info, Target, TrendingUp, Award, GraduationCap, Edit, Trash2 } from 'lucide-react';
+import {
+    useEmployees, useHolidays, useDesignations, useJobs, useApplications,
+    useCreateEmployee, useUpdateEmployee, useCreateJob, useUpdateJob,
+    useWorkReportMutations, usePerformanceReviewMutation, useAttendanceMutations,
+    useDeleteEmployee, useLeaveRequests, useSalarySlips, useAttendance,
+    useWorkReports, useProductivity, useDocuments, useLeaveRequestMutations,
+    useDocumentMutations, usePerformanceReviews, useHRInsights,
+    useBulkSalaryMutation
+} from '@/hooks/useHR';
 
 const FormattedTime = ({ date }: { date: string | Date | null }) => {
     if (!date) return <span>--:--</span>;
@@ -13,82 +30,98 @@ const FormattedTime = ({ date }: { date: string | Date | null }) => {
 };
 
 export default function HRManagementPage() {
-    const [employees, setEmployees] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const searchParams = useSearchParams();
+
+    // React Query Hooks - Basic
+    const { data: employees = [], isLoading: loadingEmployees } = useEmployees();
+    const { data: designations = [] } = useDesignations();
+    const { data: jobs = [] } = useJobs(true);
+    const { data: applications = [] } = useApplications();
+    const { data: holidays = [] } = useHolidays();
+
+    // State for filtering
     const [userRole, setUserRole] = useState('CUSTOMER');
     const [activeTab, setActiveTab] = useState('employees');
-    const [stats, setStats] = useState({ present: 0, total: 0 });
-    const [leaves, setLeaves] = useState<any[]>([]);
-    const [allSlips, setAllSlips] = useState<any[]>([]);
-    const [allAttendance, setAllAttendance] = useState<any[]>([]);
-    const [allReviews, setAllReviews] = useState<any[]>([]);
-    const [hrInsights, setHrInsights] = useState<any>(null);
-    const [empDocuments, setEmpDocuments] = useState<any[]>([]);
+
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab) {
+            setActiveTab(tab);
+        }
+    }, [searchParams]);
+
     const [selectedDocEmp, setSelectedDocEmp] = useState<any>(null);
-    const [jobs, setJobs] = useState<any[]>([]);
-    const [applications, setApplications] = useState<any[]>([]);
-    const [holidays, setHolidays] = useState<any[]>([]);
-    const [prodAnalysis, setProdAnalysis] = useState<any>(null);
     const [prodDateRange, setProdDateRange] = useState({
         startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
         endDate: new Date().toISOString().split('T')[0]
     });
+
+    // React Query Hooks - Tab Specific
+    const { data: leaves = [] } = useLeaveRequests();
+    const { data: allSlips = [] } = useSalarySlips();
+    const { data: allAttendance = [] } = useAttendance();
+    const { data: workReports = [], refetch: refetchWorkReports } = useWorkReports();
+    const { data: prodAnalysis } = useProductivity(prodDateRange.startDate, prodDateRange.endDate);
+    const { data: empDocuments = [] } = useDocuments(selectedDocEmp?.id);
+    const { data: allReviews = [] } = usePerformanceReviews();
+    const { data: hrInsights } = useHRInsights(activeTab === 'analytics');
+
+    // Mutations
+    const createEmployeeMutation = useCreateEmployee();
+    const updateEmployeeMutation = useUpdateEmployee();
+    const createJobMutation = useCreateJob();
+    const updateJobMutation = useUpdateJob();
+    const { updateStatus: updateReportStatus } = useWorkReportMutations();
+    const performanceReviewMutation = usePerformanceReviewMutation();
+    const { correct: attendanceCorrectionMutation } = useAttendanceMutations();
+    const deleteEmployeeMutation = useDeleteEmployee();
+    const { updateStatus: updateLeaveStatus } = useLeaveRequestMutations();
+    const { upload: uploadDoc, remove: removeDoc } = useDocumentMutations();
+    const bulkSalaryMutation = useBulkSalaryMutation();
+
+
+
+    // ... (keep handleLeaveStatus, etc) ...
+
+    const handleEmpSubmit = async (data: any) => {
+        try {
+            if (selectedEmp) {
+                await updateEmployeeMutation.mutateAsync({ ...data, id: selectedEmp.id });
+            } else {
+                await createEmployeeMutation.mutateAsync(data);
+            }
+            setShowEmpModal(false);
+        } catch (err: any) {
+            console.error(err);
+            alert(err.message || 'Failed to save employee');
+        }
+    };
+
+    // ...
+
+    const handleJobSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            if (selectedJob) {
+                await updateJobMutation.mutateAsync({ ...jobForm, id: selectedJob.id });
+            } else {
+                await createJobMutation.mutateAsync(jobForm);
+            }
+            setShowJobModal(false);
+        } catch (err: any) {
+            console.error(err);
+            alert(err.message || 'Failed to save job');
+        }
+    };
+
+    // Keep handleDeactivateEmp with manual fetch for now or add mutation later
+
 
     // Modal state
     const [showEmpModal, setShowEmpModal] = useState(false);
     const [showReviewModal, setShowReviewModal] = useState(false);
     const [reviewForm, setReviewForm] = useState({ rating: 5, feedback: '' });
     const [selectedEmp, setSelectedEmp] = useState<any>(null);
-    const [empForm, setEmpForm] = useState({
-        email: '',
-        password: '',
-        role: 'SALES_EXECUTIVE',
-        designation: '',
-        baseSalary: '',
-        bankName: '',
-        accountNumber: '',
-        panNumber: '',
-        offerLetterUrl: '',
-        contractUrl: '',
-        jobDescription: '',
-        kra: '',
-        totalExperienceYears: 0,
-        totalExperienceMonths: 0,
-        relevantExperienceYears: 0,
-        relevantExperienceMonths: 0,
-        qualification: '',
-        grade: '',
-        lastPromotionDate: '',
-        lastIncrementDate: '',
-        nextReviewDate: '',
-        lastIncrementPercentage: 0,
-        designationId: '',
-
-        // New Fields
-        phoneNumber: '',
-        officePhone: '',
-        personalEmail: '',
-        emergencyContact: '',
-
-        address: '',
-        permanentAddress: '',
-
-        aadharNumber: '',
-        uanNumber: '',
-        pfNumber: '',
-        esicNumber: '',
-        ifscCode: '',
-        bloodGroup: '',
-    });
-
-    const [designations, setDesignations] = useState<any[]>([]);
-
-    useEffect(() => {
-        fetch('/api/hr/designations')
-            .then(res => res.json())
-            .then(data => setDesignations(Array.isArray(data) ? data : []))
-            .catch(err => console.error('Error fetching designations:', err));
-    }, []);
 
     // Attendance correction
     const [showAttendanceModal, setShowAttendanceModal] = useState(false);
@@ -109,21 +142,10 @@ export default function HRManagementPage() {
     });
 
     // Work Reports Analysis
-    const [workReports, setWorkReports] = useState<any[]>([]);
+    // const [workReports, setWorkReports] = useState<any[]>([]); // Replaced by useWorkReports hook
     const [reportFilter, setReportFilter] = useState({ employeeId: 'all', category: 'ALL', startDate: '', endDate: '' });
 
-    const fetchWorkReports = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const query = new URLSearchParams(reportFilter as any).toString();
-            const res = await fetch(`/api/hr/work-reports?${query}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) setWorkReports(await res.json());
-        } catch (err) {
-            console.error(err);
-        }
-    };
+    // fetchWorkReports removed, now handled by useWorkReports hook
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -135,241 +157,84 @@ export default function HRManagementPage() {
                 return;
             }
             setUserRole(parsedUser.role);
-            fetchEmployees();
+            // fetchEmployees replaced by hook
         } else {
             window.location.href = '/login';
         }
     }, []);
 
-    const fetchEmployees = async () => {
-        setLoading(true);
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/employees', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setEmployees(data);
-                // Basic stats for today (mocking for now as we don't have date filtering here)
-                setStats({ total: data.length, present: data.filter((e: any) => e._count.attendance > 0).length });
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    // fetchLeaves removed, now handled by useLeaveRequests hook
 
-    const fetchLeaves = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/leave-requests?all=true', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) setLeaves(await res.json());
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const fetchSlips = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/salary-slips?all=true', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) setAllSlips(await res.json());
-
-            const revRes = await fetch('/api/hr/performance?all=true', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (revRes.ok) setAllReviews(await revRes.json());
-
-            // Only fetch insights if analytics tab is active
-            if (activeTab === 'analytics') {
-                const insightsRes = await fetch('/api/ai-insights?type=hr', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (insightsRes.ok) setHrInsights(await insightsRes.json());
-            }
-
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const fetchDocuments = async (empId: string) => {
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/hr/documents?employeeId=${empId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) setEmpDocuments(await res.json());
-        } catch (err) {
-            console.error(err);
-        }
-    };
+    // fetchSlips removed, now handled by useSalarySlips hook
+    // fetchDocuments removed, now handled by useDocuments hook
 
     const handleDocumentUpload = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!selectedDocEmp) return;
         const formData = new FormData(e.currentTarget);
-        const token = localStorage.getItem('token');
-
         try {
-            const res = await fetch('/api/hr/documents', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    employeeId: selectedDocEmp.id,
-                    name: formData.get('name'),
-                    fileUrl: formData.get('fileUrl'),
-                    fileType: 'DOCUMENT'
-                })
+            await uploadDoc.mutateAsync({
+                employeeId: selectedDocEmp.id,
+                name: formData.get('name'),
+                fileUrl: formData.get('fileUrl'),
+                fileType: 'DOCUMENT'
             });
-            if (res.ok) {
-                e.currentTarget.reset();
-                fetchDocuments(selectedDocEmp.id);
-                alert('Document uploaded!');
-            }
-        } catch (err) {
-            console.error(err);
-        }
+            e.currentTarget.reset();
+            alert('Document uploaded!');
+        } catch (err) { console.error(err); }
     };
 
     const handleDeleteDocument = async (id: string) => {
         if (!confirm('Delete this document?')) return;
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/hr/documents?id=${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                fetchDocuments(selectedDocEmp.id);
-            }
-        } catch (err) {
-            console.error(err);
-        }
+            await removeDoc.mutateAsync(id);
+        } catch (err) { console.error(err); }
     };
 
-    const fetchAttendance = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/attendance?all=true', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) setAllAttendance(await res.json());
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const fetchRecruitmentData = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const [jobsRes, appsRes] = await Promise.all([
-                fetch('/api/recruitment/jobs?all=true', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/recruitment/applications', { headers: { 'Authorization': `Bearer ${token}` } })
-            ]);
-
-            if (jobsRes.ok) setJobs(await jobsRes.json());
-            if (appsRes.ok) setApplications(await appsRes.json());
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
+    // fetchAttendance removed, now handled by useAttendance hook
 
 
     useEffect(() => {
-        if (activeTab === 'leaves') fetchLeaves();
-        if (activeTab === 'analytics' || activeTab === 'payroll') fetchSlips();
-        if (activeTab === 'attendance') fetchAttendance();
-        if (activeTab === 'recruitment') fetchRecruitmentData();
-        if (activeTab === 'documents' && selectedDocEmp) fetchDocuments(selectedDocEmp.id);
-        if (activeTab === 'reports') fetchWorkReports();
-        if (activeTab === 'holidays') fetchHolidays();
-        if (activeTab === 'productivity') fetchProductivity();
+        // All fetches are now handled by React Query hooks, which re-fetch on dependency changes
+        // The activeTab, selectedDocEmp, prodDateRange dependencies are implicitly handled by the hooks themselves
+        // No manual fetches needed here anymore.
+        // if (activeTab === 'leaves') fetchLeaves(); // Removed
+        // if (activeTab === 'analytics' || activeTab === 'payroll') fetchSlips(); // Removed
+        // if (activeTab === 'attendance') fetchAttendance(); // Removed
+        // if (activeTab === 'recruitment') fetchRecruitmentData(); // Removed
+        // if (activeTab === 'documents' && selectedDocEmp) fetchDocuments(selectedDocEmp.id); // Removed
+        // if (activeTab === 'reports') fetchWorkReports(); // Removed
+        // Holidays fetched inside component
+        // if (activeTab === 'productivity') fetchProductivity(); // Removed
     }, [activeTab, selectedDocEmp, prodDateRange]);
 
-    const fetchHolidays = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/holidays', { headers: { 'Authorization': `Bearer ${token}` } });
-            if (res.ok) setHolidays(await res.json());
-        } catch (err) { console.error(err); }
-    };
+    // fetchHolidays removed
 
-    const fetchProductivity = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/hr/productivity?startDate=${prodDateRange.startDate}&endDate=${prodDateRange.endDate}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) setProdAnalysis(await res.json());
-        } catch (err) { console.error(err); }
-    };
+    // fetchProductivity removed, now handled by useProductivity hook
 
     const handleLeaveStatus = async (leaveId: string, status: 'APPROVED' | 'REJECTED') => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/leave-requests', {
-                method: 'PATCH',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ leaveId, status })
-            });
-            if (res.ok) {
-                fetchLeaves();
-            }
-        } catch (err) {
-            console.error(err);
-        }
+            await updateLeaveStatus.mutateAsync({ leaveId, status });
+        } catch (err) { console.error(err); }
+    };
+    // Computed stats
+    const stats = {
+        total: employees.length,
+        present: employees.filter((e: any) => e._count?.attendance > 0).length // _count might be undefined if not included in query? Hook should include it.
     };
 
+    // Old fetch implementations removed in favor of React Query mutations
 
-
-    const handleEmpSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            const token = localStorage.getItem('token');
-            const url = '/api/hr/employees';
-            const method = selectedEmp ? 'PATCH' : 'POST';
-            const body = selectedEmp ? { id: selectedEmp.id, ...empForm } : empForm;
-
-            const res = await fetch(url, {
-                method,
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-
-            if (res.ok) {
-                setShowEmpModal(false);
-                setSelectedEmp(null);
-                fetchEmployees();
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
 
     const handleReportAction = async (reportId: string, status: 'APPROVED' | 'REVIEWED', rating?: number) => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/work-reports', {
-                method: 'PATCH',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: reportId,
-                    status,
-                    managerComment: status === 'APPROVED' ? 'Approved & Verified' : 'Reviewed',
-                    managerRating: rating || 3
-                })
+            await updateReportStatus.mutateAsync({
+                id: reportId,
+                status,
+                managerComment: status === 'APPROVED' ? 'Approved & Verified' : 'Reviewed',
+                managerRating: rating || 3
             });
-            if (res.ok) {
-                fetchEmployees(); // Refresh reports
-            }
+            // Refresh logic is now handled by React Query invalidation
         } catch (err) {
             console.error(err);
         }
@@ -379,23 +244,15 @@ export default function HRManagementPage() {
         e.preventDefault();
         if (!selectedEmp) return;
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/performance', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    employeeId: selectedEmp.id,
-                    rating: reviewForm.rating,
-                    feedback: reviewForm.feedback
-                })
+            await performanceReviewMutation.mutateAsync({
+                employeeId: selectedEmp.id,
+                rating: reviewForm.rating,
+                feedback: reviewForm.feedback
             });
-
-            if (res.ok) {
-                setShowReviewModal(false);
-                setSelectedEmp(null);
-                setReviewForm({ rating: 5, feedback: '' });
-                alert('Review submitted successfully!');
-            }
+            setShowReviewModal(false);
+            setSelectedEmp(null);
+            setReviewForm({ rating: 5, feedback: '' });
+            alert('Review submitted successfully!');
         } catch (err) {
             console.error(err);
         }
@@ -404,15 +261,8 @@ export default function HRManagementPage() {
     const handleDeactivateEmp = async (empId: string) => {
         if (!confirm('Are you sure you want to deactivate this employee? They will lose access.')) return;
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/hr/employees?id=${empId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                alert('Employee deactivated successfully');
-                fetchEmployees();
-            }
+            await deleteEmployeeMutation.mutateAsync(empId);
+            alert('Employee deactivated successfully');
         } catch (err) {
             console.error(err);
         }
@@ -421,21 +271,13 @@ export default function HRManagementPage() {
     const handleAttendanceUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/attendance', {
-                method: 'PATCH',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: attendanceForm.id,
-                    checkIn: attendanceForm.checkIn ? new Date(attendanceForm.checkIn).toISOString() : null,
-                    checkOut: attendanceForm.checkOut ? new Date(attendanceForm.checkOut).toISOString() : null,
-                    status: attendanceForm.status
-                })
+            await attendanceCorrectionMutation.mutateAsync({
+                id: attendanceForm.id,
+                checkIn: attendanceForm.checkIn ? new Date(attendanceForm.checkIn).toISOString() : null,
+                checkOut: attendanceForm.checkOut ? new Date(attendanceForm.checkOut).toISOString() : null,
+                status: attendanceForm.status
             });
-            if (res.ok) {
-                setShowAttendanceModal(false);
-                fetchAttendance();
-            }
+            setShowAttendanceModal(false);
         } catch (err) {
             console.error(err);
         }
@@ -469,49 +311,17 @@ export default function HRManagementPage() {
         setShowJobModal(true);
     };
 
-    const handleJobSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            const token = localStorage.getItem('token');
-            const url = '/api/recruitment/jobs';
-            const method = selectedJob ? 'PATCH' : 'POST';
-            const body = selectedJob ? { ...jobForm, id: selectedJob.id } : jobForm;
 
-            const res = await fetch(url, {
-                method,
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-
-            if (res.ok) {
-                setShowJobModal(false);
-                fetchRecruitmentData();
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
 
     const handleBulkPayroll = async () => {
-        if (!confirm('Generate salary slips for all active employees for the current month?')) return;
+        if (!confirm('This will generate salary slips for ALL active employees for the current month. Deduct leaves automatically?')) return;
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/salary-slips', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'BULK_GENERATE',
-                    month: new Date().getMonth() + 1,
-                    year: new Date().getFullYear()
-                })
+            const data = await bulkSalaryMutation.mutateAsync({
+                action: 'BULK_GENERATE',
+                month: new Date().getMonth() + 1,
+                year: new Date().getFullYear()
             });
-
-            if (res.ok) {
-                const data = await res.json();
-                alert(data.message);
-                // Refresh if on payroll tab (will implement context refresh if needed, for now just basic alert)
-                if (activeTab === 'payroll') fetchSlips();
-            }
+            alert(data.message);
         } catch (err) {
             console.error(err);
         }
@@ -536,28 +346,6 @@ export default function HRManagementPage() {
                         <button
                             onClick={() => {
                                 setSelectedEmp(null);
-                                setEmpForm({
-                                    email: '', password: '', role: 'SALES_EXECUTIVE', designation: '',
-                                    baseSalary: '', bankName: '', accountNumber: '', panNumber: '',
-                                    offerLetterUrl: '', contractUrl: '', jobDescription: '', kra: '',
-                                    totalExperienceYears: 0, totalExperienceMonths: 0,
-                                    relevantExperienceYears: 0, relevantExperienceMonths: 0,
-                                    qualification: '', grade: '', lastPromotionDate: '',
-                                    lastIncrementDate: '', nextReviewDate: '', lastIncrementPercentage: 0,
-                                    designationId: '',
-                                    phoneNumber: '',
-                                    officePhone: '',
-                                    personalEmail: '',
-                                    emergencyContact: '',
-                                    address: '',
-                                    permanentAddress: '',
-                                    bloodGroup: '',
-                                    aadharNumber: '',
-                                    uanNumber: '',
-                                    pfNumber: '',
-                                    esicNumber: '',
-                                    ifscCode: '',
-                                });
                                 setShowEmpModal(true);
                             }}
                             className="btn btn-primary shadow-xl"
@@ -600,143 +388,28 @@ export default function HRManagementPage() {
                 </div>
 
                 {activeTab === 'employees' && (
-                    <div className="card-premium overflow-hidden">
-                        <table className="table">
-                            <thead>
-                                <tr className="text-[10px] uppercase font-black text-secondary-400 border-b border-secondary-50">
-                                    <th className="pb-4">Staff Member</th>
-                                    <th className="pb-4">Role & Designation</th>
-                                    <th className="pb-4">Financials</th>
-                                    <th className="pb-4">Stats</th>
-                                    <th className="pb-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-secondary-50">
-                                {loading ? (
-                                    <tr><td colSpan={5} className="text-center py-20 text-secondary-400 font-bold animate-pulse italic">Scanning workforce assets...</td></tr>
-                                ) : employees.map(emp => (
-                                    <tr key={emp.id} className="hover:bg-secondary-50/50 transition-colors group">
-                                        <td className="py-4">
-                                            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.location.href = `/dashboard/hr-management/employees/${emp.id}`}>
-                                                <div className="w-10 h-10 bg-gradient-to-br from-secondary-100 to-secondary-200 rounded-xl flex items-center justify-center font-black text-secondary-600">
-                                                    {emp.user.email.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <p className="font-bold text-secondary-900 hover:text-primary-600 transition-colors">{emp.user.email}</p>
-                                                    <div className="flex gap-2">
-                                                        <p className="text-[10px] text-secondary-400 font-bold">Pan: {emp.panNumber || 'NOTSET'}</p>
-                                                        <span className={`text-[10px] font-black px-1 rounded ${emp.user.isActive ? 'bg-success-100 text-success-700' : 'bg-danger-100 text-danger-700'}`}>{emp.user.isActive ? 'ACTIVE' : 'INACTIVE'}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-4">
-                                            <span className="px-2 py-1 bg-primary-50 text-primary-700 text-[10px] font-black rounded uppercase">{emp.user.role}</span>
-                                            <p className="text-xs font-bold text-secondary-600 mt-1">{emp.designation || 'Specialist'}</p>
-                                        </td>
-                                        <td className="py-4">
-                                            <p className="text-sm font-black text-secondary-900">₹{parseFloat(emp.baseSalary || 0).toLocaleString()}</p>
-                                            <p className="text-[10px] text-secondary-400 font-bold uppercase">{emp.bankName || 'No Bank Set'}</p>
-                                        </td>
-                                        <td className="py-4">
-                                            <div className="flex gap-4">
-                                                <div className="text-center">
-                                                    <p className="text-sm font-black text-secondary-900">{emp._count.attendance}</p>
-                                                    <p className="text-[9px] font-black text-secondary-400 uppercase">Days</p>
-                                                </div>
-                                                <div className="text-center">
-                                                    <p className="text-sm font-black text-secondary-900">{emp._count.workReports}</p>
-                                                    <p className="text-[9px] font-black text-secondary-400 uppercase">Reports</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="py-4 text-right">
-                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedEmp(emp);
-                                                        setEmpForm({
-                                                            email: emp.user.email,
-                                                            password: '',
-                                                            role: emp.user.role,
-                                                            designation: emp.designation || '',
-                                                            baseSalary: emp.baseSalary || '',
-                                                            bankName: emp.bankName || '',
-                                                            accountNumber: emp.accountNumber || '',
-                                                            panNumber: emp.panNumber || '',
-                                                            offerLetterUrl: emp.offerLetterUrl || '',
-                                                            contractUrl: emp.contractUrl || '',
-                                                            jobDescription: emp.jobDescription || '',
-                                                            kra: emp.kra || '',
-                                                            totalExperienceYears: emp.totalExperienceYears || 0,
-                                                            totalExperienceMonths: emp.totalExperienceMonths || 0,
-                                                            relevantExperienceYears: emp.relevantExperienceYears || 0,
-                                                            relevantExperienceMonths: emp.relevantExperienceMonths || 0,
-                                                            qualification: emp.qualification || '',
-                                                            grade: emp.grade || '',
-                                                            lastPromotionDate: emp.lastPromotionDate?.split('T')[0] || '',
-                                                            lastIncrementDate: emp.lastIncrementDate?.split('T')[0] || '',
-                                                            nextReviewDate: emp.nextReviewDate?.split('T')[0] || '',
-                                                            lastIncrementPercentage: emp.lastIncrementPercentage || 0,
-                                                            designationId: emp.designationId || '',
-
-                                                            phoneNumber: emp.phoneNumber || '',
-                                                            officePhone: emp.officePhone || '',
-                                                            personalEmail: emp.personalEmail || '',
-                                                            emergencyContact: emp.emergencyContact || '',
-                                                            address: emp.address || '',
-                                                            permanentAddress: emp.permanentAddress || '',
-                                                            bloodGroup: emp.bloodGroup || '',
-                                                            ifscCode: emp.ifscCode || '', // Check if emp model has this field? It wasn't in list but added to form. If undefined, default to ''
-                                                            aadharNumber: emp.aadharNumber || '',
-                                                            uanNumber: emp.uanNumber || '',
-                                                            pfNumber: emp.pfNumber || '',
-                                                            esicNumber: emp.esicNumber || ''
-                                                        });
-                                                        setShowEmpModal(true);
-                                                    }}
-                                                    className="p-2 hover:bg-white rounded-lg text-primary-600"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedEmp(emp);
-                                                        setShowReviewModal(true);
-                                                    }}
-                                                    className="p-2 hover:bg-white rounded-lg text-warning-500 tooltip-left"
-                                                    title="Evaluate Performance"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        const amount = prompt("Salary Amount:");
-                                                        if (amount) fetch('/api/hr/salary-slips', {
-                                                            method: 'POST',
-                                                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({ employeeId: emp.id, month: new Date().getMonth() + 1, year: new Date().getFullYear(), amountPaid: amount, status: 'PAID' })
-                                                        }).then(r => r.ok && alert('Paid!'));
-                                                    }}
-                                                    className="p-2 hover:bg-white rounded-lg text-success-600"
-                                                    title="Quick Pay"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeactivateEmp(emp.id)}
-                                                    className="p-2 hover:bg-white rounded-lg text-danger-500"
-                                                    title="Deactivate / Delete"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} /></svg>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <EmployeeList
+                        employees={employees}
+                        loading={loadingEmployees}
+                        onEdit={(emp) => {
+                            setSelectedEmp(emp);
+                            setShowEmpModal(true);
+                        }}
+                        onDelete={handleDeactivateEmp}
+                        onPay={(emp) => {
+                            const amount = prompt("Salary Amount:");
+                            if (amount) fetch('/api/hr/salary-slips', {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ employeeId: emp.id, month: new Date().getMonth() + 1, year: new Date().getFullYear(), amountPaid: amount, status: 'PAID' })
+                            }).then(r => r.ok && alert('Paid!'));
+                        }}
+                        onReview={(emp) => {
+                            setSelectedEmp(emp);
+                            setShowReviewModal(true);
+                        }}
+                        onViewProfile={(id) => window.location.href = `/dashboard/hr-management/employees/${id}`}
+                    />
                 )}
 
                 {activeTab === 'documents' && (
@@ -754,15 +427,14 @@ export default function HRManagementPage() {
                                             key={emp.id}
                                             onClick={() => {
                                                 setSelectedDocEmp(emp);
-                                                fetchDocuments(emp.id);
                                             }}
                                             className={`w-full text-left p-3 rounded-xl flex items-center gap-3 transition-all ${selectedDocEmp?.id === emp.id ? 'bg-primary-50 border border-primary-200 shadow-sm' : 'hover:bg-secondary-50 border border-transparent'}`}
                                         >
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${selectedDocEmp?.id === emp.id ? 'bg-primary-600 text-white' : 'bg-secondary-100 text-secondary-500'}`}>
-                                                {emp.user.email[0].toUpperCase()}
+                                                {emp.user?.email?.[0].toUpperCase() || 'U'}
                                             </div>
                                             <div className="overflow-hidden">
-                                                <p className={`text-sm font-bold truncate ${selectedDocEmp?.id === emp.id ? 'text-primary-900' : 'text-secondary-900'}`}>{emp.user.email.split('@')[0]}</p>
+                                                <p className={`text-sm font-bold truncate ${selectedDocEmp?.id === emp.id ? 'text-primary-900' : 'text-secondary-900'}`}>{emp.user?.email?.split('@')[0] || 'Unknown'}</p>
                                                 <p className="text-[10px] text-secondary-400 truncate">{emp.designation}</p>
                                             </div>
                                         </button>
@@ -776,7 +448,7 @@ export default function HRManagementPage() {
                                     <>
                                         <div className="card-premium bg-primary-900 text-white flex justify-between items-center bg-[url('https://grainy-gradients.vercel.app/noise.svg')]">
                                             <div>
-                                                <h3 className="text-xl font-black">{selectedDocEmp.user.email}</h3>
+                                                <h3 className="text-xl font-black">{selectedDocEmp.user?.email || 'Unknown'}</h3>
                                                 <p className="text-primary-200 text-sm">Employee Digital File</p>
                                             </div>
                                             <div className="text-right">
@@ -834,7 +506,7 @@ export default function HRManagementPage() {
                                     onChange={(e) => setReportFilter({ ...reportFilter, employeeId: e.target.value })}
                                 >
                                     <option value="all">Check All Employees</option>
-                                    {employees.map(e => <option key={e.id} value={e.id}>{e.user.email} - {e.designation}</option>)}
+                                    {employees.map(e => <option key={e.id} value={e.id}>{e.user?.email} - {e.designation}</option>)}
                                 </select>
                             </div>
                             <div>
@@ -869,7 +541,7 @@ export default function HRManagementPage() {
                                     <option value="GENERAL">General</option>
                                 </select>
                             </div>
-                            <button onClick={fetchWorkReports} className="btn btn-primary h-[42px] px-8 shadow-lg">Refresh Analytics</button>
+                            <button onClick={() => refetchWorkReports()} className="btn btn-primary h-[42px] px-8 shadow-lg">Refresh Analytics</button>
                         </div>
 
                         {/* Analytic Summary */}
@@ -1259,99 +931,12 @@ export default function HRManagementPage() {
                 )}
 
                 {activeTab === 'recruitment' && (
-                    <div className="space-y-8">
-                        {/* Jobs Overview */}
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <h3 className="text-xl font-bold text-secondary-900">Talent Acquisition</h3>
-                                <p className="text-secondary-500 text-sm">Manage job openings and track applicant pipelines.</p>
-                            </div>
-                            <button onClick={handleCreateJob} className="btn btn-primary shadow-lg">+ Post New Job</button>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {jobs.map(job => (
-                                <div key={job.id} onClick={() => handleEditJob(job)} className="card-premium p-6 border-l-4 border-primary-500 hover:shadow-lg transition-all cursor-pointer relative group">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${job.status === 'OPEN' ? 'bg-success-50 text-success-700' : 'bg-secondary-100 text-secondary-500'}`}>{job.status}</span>
-                                        <span className="text-xs font-bold text-secondary-400">{job._count?.applications || 0} Apps</span>
-                                    </div>
-                                    <h4 className="font-bold text-secondary-900 mb-1">{job.title}</h4>
-                                    <p className="text-xs text-secondary-500 mb-4">{job.type.replace('_', ' ')} • {job.salaryRange}</p>
-                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white p-1 rounded-full shadow-sm">
-                                        <span className="text-xs text-primary-600 font-bold">✎ Edit</span>
-                                    </div>
-                                    <div className="flex -space-x-2 overflow-hidden">
-                                        {Array.from({ length: Math.min(3, job._count?.applications || 0) }).map((_, i) => (
-                                            <div key={i} className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-secondary-200" />
-                                        ))}
-                                        {(job._count?.applications || 0) > 3 && (
-                                            <div className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-secondary-100 flex items-center justify-center text-[8px] font-bold text-secondary-500">+{job._count.applications - 3}</div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                            <div onClick={handleCreateJob} className="card-premium p-6 border-dashed border-2 border-secondary-200 flex flex-col items-center justify-center text-secondary-400 hover:border-primary-300 hover:text-primary-500 cursor-pointer transition-all">
-                                <span className="text-3xl mb-2">+</span>
-                                <span className="font-bold text-sm">Create Opening</span>
-                            </div>
-                        </div>
-
-                        {/* Application Pipeline */}
-                        <div className="card-premium overflow-hidden">
-                            <div className="p-6 border-b border-secondary-50">
-                                <h3 className="text-lg font-black text-secondary-900 uppercase tracking-widest">Candidate Pipeline</h3>
-                            </div>
-                            <table className="table">
-                                <thead>
-                                    <tr className="text-[10px] uppercase font-bold text-secondary-400 border-b border-secondary-50">
-                                        <th className="p-4">Candidate</th>
-                                        <th className="p-4">Applied For</th>
-                                        <th className="p-4 text-center">AI Match Score</th>
-                                        <th className="p-4 text-center">Stage</th>
-                                        <th className="p-4 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-secondary-50">
-                                    {applications.length === 0 ? (
-                                        <tr><td colSpan={5} className="text-center py-10 text-secondary-400 font-bold italic">No active applications.</td></tr>
-                                    ) : applications.map(app => (
-                                        <tr key={app.id} className="hover:bg-secondary-50/50 group">
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-xs">
-                                                        {app.applicantName[0]}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-bold text-secondary-900">{app.applicantName}</p>
-                                                        <p className="text-[10px] text-secondary-400">{app.applicantEmail}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="p-4 font-bold text-secondary-600 text-xs">{app.jobPosting.title}</td>
-                                            <td className="p-4 text-center">
-                                                {/* Simulated AI Score */}
-                                                <div className="inline-flex items-center gap-1 px-2 py-1 rounded bg-accent-50 text-accent-700 text-xs font-black border border-accent-100">
-                                                    <span>🤖</span> {Math.floor(Math.random() * (98 - 70) + 70)}%
-                                                </div>
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                <span className={`px-2 py-1 text-[10px] font-black rounded uppercase ${app.status === 'APPLIED' ? 'bg-primary-50 text-primary-700' :
-                                                    app.status.includes('INTERVIEW') ? 'bg-warning-50 text-warning-700' :
-                                                        app.status === 'SELECTED' ? 'bg-success-50 text-success-700' : 'bg-secondary-100 text-secondary-500'
-                                                    }`}>
-                                                    {app.status}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                <button className="text-primary-600 font-bold text-[10px] uppercase hover:underline opacity-0 group-hover:opacity-100 transition-opacity">View Profile</button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <RecruitmentBoard
+                        jobs={jobs}
+                        applications={applications}
+                        onCreateJob={handleCreateJob}
+                        onEditJob={handleEditJob}
+                    />
                 )}
 
                 {activeTab === 'map' && (
@@ -1414,6 +999,7 @@ export default function HRManagementPage() {
                                     <div>
                                         <h4 className="font-bold text-sm text-secondary-900">{a.employee.user.email}</h4>
                                         <div className="flex items-center gap-2">
+
                                             <span className="text-xs text-secondary-500">Checked in at <FormattedTime date={a.checkIn} /></span>
                                             {a.isGeofenced ? (
                                                 <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-black uppercase shadow-sm border border-emerald-100">Verified HQ</span>
@@ -1429,26 +1015,10 @@ export default function HRManagementPage() {
                     </div>
                 )}
 
-                {activeTab === 'holidays' && (
-                    <div className="space-y-6">
-                        <div className="flex justify-between items-end">
-                            <div>
-                                <h3 className="text-2xl font-black text-secondary-900 tracking-tighter uppercase">Holiday Almanac</h3>
-                                <p className="text-secondary-500 font-medium">Official non-operational schedule.</p>
-                            </div>
-                            <button onClick={() => window.open('/dashboard/hr-management/holidays', '_blank')} className="text-xs font-black text-primary-600 uppercase tracking-widest hover:underline">Manage Detailed List ↗</button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                            {holidays.map((h: any) => (
-                                <div key={h.id} className="card-premium p-6 border-l-4" style={{ borderColor: h.type === 'PUBLIC' ? '#2563eb' : '#7c3aed' }}>
-                                    <p className="text-xs font-black text-secondary-400 uppercase mb-2">{new Date(h.date).toLocaleDateString(undefined, { month: 'short', day: '2-digit' })}</p>
-                                    <h4 className="font-black text-secondary-900">{h.name}</h4>
-                                    <p className="text-[10px] font-bold text-secondary-400 uppercase mt-2">{h.type}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                {activeTab === 'holidays' && <HolidayManager />}
+
+                {/* Holiday Modal */}
+                {/* Holiday Modal Removed */}
 
                 {activeTab === 'productivity' && (
                     <div className="space-y-6">
@@ -1530,338 +1100,35 @@ export default function HRManagementPage() {
                 {activeTab === 'onboarding' && <OnboardingManager />}
 
                 {/* MODAL */}
-                {showEmpModal && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-                            <div className="bg-secondary-50 p-6 border-b border-secondary-100 flex justify-between items-center">
-                                <div>
-                                    <h3 className="text-xl font-bold text-secondary-900">{selectedEmp ? 'Edit Profile' : 'New Onboarding'}</h3>
-                                    {selectedEmp && (
-                                        <a href={`/dashboard/hr-management/employees/${selectedEmp.id}`} target="_blank" className="text-xs text-primary-600 font-bold hover:underline flex items-center gap-1">
-                                            View Full Track Record & Analytics ↗
-                                        </a>
-                                    )}
-                                </div>
-                                <button onClick={() => setShowEmpModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
-                            </div>
-                            <form onSubmit={handleEmpSubmit} className="p-8 grid grid-cols-2 gap-6 max-h-[85vh] overflow-y-auto">
-                                {selectedEmp ? (
-                                    <div className="col-span-2">
-                                        <label className="label-premium">Staff Email (Read Only)</label>
-                                        <input type="email" disabled className="input-premium bg-secondary-50 opacity-60" value={empForm.email} />
-                                    </div>
-                                ) : (
-                                    <div className="col-span-1">
-                                        <label className="label-premium">Email Address</label>
-                                        <input type="email" required className="input-premium" placeholder="new.staff@example.com" value={empForm.email} onChange={e => setEmpForm({ ...empForm, email: e.target.value })} />
-                                        <p className="text-[10px] text-primary-600 font-bold mt-1 leading-tight">💡 Enter an existing user&apos;s email to add them to your company.</p>
-                                    </div>
-                                )}
-                                <div className="col-span-1">
-                                    <label className="label-premium">System Role</label>
-                                    <select className="input-premium" value={empForm.role} onChange={e => setEmpForm({ ...empForm, role: e.target.value })}>
-                                        <option value="SALES_EXECUTIVE">Sales Executive</option>
-                                        <option value="MANAGER">Manager</option>
-                                        <option value="FINANCE_ADMIN">Finance Admin</option>
-                                        <option value="ADMIN">Admin</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="label-premium">Designation & KRA Profile</label>
-                                    <select
-                                        className="input-premium"
-                                        value={empForm.designationId}
-                                        onChange={e => {
-                                            const desId = e.target.value;
-                                            const selected = designations.find(d => d.id === desId);
-                                            setEmpForm({
-                                                ...empForm,
-                                                designationId: desId,
-                                                designation: selected?.name || empForm.designation,
-                                                jobDescription: selected?.jobDescription || empForm.jobDescription,
-                                                kra: selected?.kra || empForm.kra
-                                            });
-                                        }}
-                                    >
-                                        <option value="">Select Predefined Role</option>
-                                        {designations.map(d => (
-                                            <option key={d.id} value={d.id}>{d.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="col-span-2">
-                                    <h4 className="label-premium font-black text-primary-600 border-b border-primary-100 pb-2 mb-4 block uppercase tracking-tighter">Financial & Statutory</h4>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="label-premium">Base Salary (Monthly)</label>
-                                            <input type="number" className="input-premium" value={empForm.baseSalary} onChange={e => setEmpForm({ ...empForm, baseSalary: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">Bank Name</label>
-                                            <input type="text" className="input-premium" value={empForm.bankName} onChange={e => setEmpForm({ ...empForm, bankName: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">Account Number</label>
-                                            <input type="text" className="input-premium" value={empForm.accountNumber} onChange={e => setEmpForm({ ...empForm, accountNumber: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">IFSC Code</label>
-                                            <input type="text" className="input-premium" value={empForm.ifscCode} onChange={e => setEmpForm({ ...empForm, ifscCode: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">PAN Number</label>
-                                            <input type="text" className="input-premium" value={empForm.panNumber} onChange={e => setEmpForm({ ...empForm, panNumber: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">Aadhar Number</label>
-                                            <input type="text" className="input-premium" value={empForm.aadharNumber} onChange={e => setEmpForm({ ...empForm, aadharNumber: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">UAN Number</label>
-                                            <input type="text" className="input-premium" value={empForm.uanNumber} onChange={e => setEmpForm({ ...empForm, uanNumber: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">PF Number</label>
-                                            <input type="text" className="input-premium" value={empForm.pfNumber} onChange={e => setEmpForm({ ...empForm, pfNumber: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="label-premium">ESIC Number</label>
-                                            <input type="text" className="input-premium" value={empForm.esicNumber} onChange={e => setEmpForm({ ...empForm, esicNumber: e.target.value })} />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="label-premium">Grade / Level</label>
-                                    <input type="text" className="input-premium" value={empForm.grade} onChange={e => setEmpForm({ ...empForm, grade: e.target.value })} />
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="label-premium font-black text-primary-600 border-b border-primary-100 pb-2 mb-4 block uppercase tracking-tighter">Experience & Qualification</label>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Total Exp (Years/Months)</label>
-                                            <div className="flex gap-2">
-                                                <input type="number" className="input-premium" placeholder="Y" value={empForm.totalExperienceYears} onChange={e => setEmpForm({ ...empForm, totalExperienceYears: parseInt(e.target.value) || 0 })} />
-                                                <input type="number" className="input-premium" placeholder="M" value={empForm.totalExperienceMonths} onChange={e => setEmpForm({ ...empForm, totalExperienceMonths: parseInt(e.target.value) || 0 })} />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-primary-500 uppercase">Relevant Exp (Years/Months)</label>
-                                            <div className="flex gap-2">
-                                                <input type="number" className="input-premium border-primary-100" placeholder="Y" value={empForm.relevantExperienceYears} onChange={e => setEmpForm({ ...empForm, relevantExperienceYears: parseInt(e.target.value) || 0 })} />
-                                                <input type="number" className="input-premium border-primary-100" placeholder="M" value={empForm.relevantExperienceMonths} onChange={e => setEmpForm({ ...empForm, relevantExperienceMonths: parseInt(e.target.value) || 0 })} />
-                                            </div>
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Educational Qualification</label>
-                                            <input type="text" className="input-premium" value={empForm.qualification} onChange={e => setEmpForm({ ...empForm, qualification: e.target.value })} />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="label-premium font-black text-warning-600 border-b border-warning-100 pb-2 mb-4 block uppercase tracking-tighter">Growth & Review Track</label>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Promotion Date</label>
-                                            <input type="date" className="input-premium" value={empForm.lastPromotionDate} onChange={e => setEmpForm({ ...empForm, lastPromotionDate: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Increment Date</label>
-                                            <input type="date" className="input-premium" value={empForm.lastIncrementDate} onChange={e => setEmpForm({ ...empForm, lastIncrementDate: e.target.value })} />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-secondary-500 uppercase">Last Increment %</label>
-                                            <input type="number" step="0.01" className="input-premium" value={empForm.lastIncrementPercentage} onChange={e => setEmpForm({ ...empForm, lastIncrementPercentage: parseFloat(e.target.value) || 0 })} />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-bold text-warning-600 uppercase">Next Review Date</label>
-                                            <input type="date" className="input-premium border-warning-200" value={empForm.nextReviewDate} onChange={e => setEmpForm({ ...empForm, nextReviewDate: e.target.value })} />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="label-premium text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-2 block">Key Responsibility Areas (KRA)</label>
-                                    <textarea
-                                        rows={3}
-                                        className="input-premium"
-                                        placeholder="Enter KRA points (one per line)..."
-                                        value={empForm.kra}
-                                        onChange={e => setEmpForm({ ...empForm, kra: e.target.value })}
-                                    />
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="label-premium text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-2 block">Job Description (Detailed)</label>
-                                    <textarea
-                                        rows={4}
-                                        className="input-premium"
-                                        placeholder="Detailed job description..."
-                                        value={empForm.jobDescription}
-                                        onChange={e => setEmpForm({ ...empForm, jobDescription: e.target.value })}
-                                    />
-                                </div>
-                                <div className="col-span-2 grid grid-cols-3 gap-4 border-t border-secondary-50 pt-6">
-                                    <div>
-                                        <label className="label-premium text-[10px]">Bank Name</label>
-                                        <input type="text" className="input-premium" value={empForm.bankName} onChange={e => setEmpForm({ ...empForm, bankName: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label className="label-premium text-[10px]">Account #</label>
-                                        <input type="text" className="input-premium" value={empForm.accountNumber} onChange={e => setEmpForm({ ...empForm, accountNumber: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label className="label-premium text-[10px]">PAN Number</label>
-                                        <input type="text" className="input-premium" value={empForm.panNumber} onChange={e => setEmpForm({ ...empForm, panNumber: e.target.value })} />
-                                    </div>
-                                </div>
-                                <div className="col-span-2 grid grid-cols-2 gap-4 border-t border-secondary-50 pt-6">
-                                    <div>
-                                        <label className="label-premium text-[10px]">Offer Letter URL</label>
-                                        <input type="text" className="input-premium" placeholder="https://..." value={empForm.offerLetterUrl} onChange={e => setEmpForm({ ...empForm, offerLetterUrl: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label className="label-premium text-[10px]">Contract URL</label>
-                                        <input type="text" className="input-premium" placeholder="https://..." value={empForm.contractUrl} onChange={e => setEmpForm({ ...empForm, contractUrl: e.target.value })} />
-                                    </div>
-                                </div>
-                                <div className="col-span-2 pt-6 flex gap-4">
-                                    <button type="submit" className="btn btn-primary flex-1 py-4 text-sm font-black uppercase tracking-widest shadow-lg">Save Record</button>
-                                    <button type="button" onClick={() => setShowEmpModal(false)} className="btn btn-secondary px-8">Cancel</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )
-                }
+                <EmployeeModal
+                    isOpen={showEmpModal}
+                    onClose={() => {
+                        setShowEmpModal(false);
+                        setSelectedEmp(null);
+                    }}
+                    employee={selectedEmp}
+                    designations={designations}
+                    onSave={handleEmpSubmit}
+                />
 
-                {
-                    showReviewModal && (
-                        <div className="fixed inset-0 bg-secondary-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                            <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-                                <div className="bg-warning-50 p-6 border-b border-warning-100 flex justify-between items-center">
-                                    <h3 className="text-xl font-bold text-warning-900">Performance Review</h3>
-                                    <button onClick={() => setShowReviewModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
-                                </div>
-                                <form onSubmit={handleReviewSubmit} className="p-8 space-y-6">
-                                    <div>
-                                        <label className="label-premium bg-warning-50 text-warning-800 px-2 py-1 rounded inline-block mb-2">Rating</label>
-                                        <div className="flex gap-4">
-                                            {[1, 2, 3, 4, 5].map(star => (
-                                                <button
-                                                    type="button"
-                                                    key={star}
-                                                    onClick={() => setReviewForm({ ...reviewForm, rating: star })}
-                                                    className={`text-3xl transition-transform hover:scale-110 ${star <= reviewForm.rating ? 'text-warning-500' : 'text-secondary-200'}`}
-                                                >
-                                                    ★
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="label-premium">Feedback & Comments</label>
-                                        <textarea
-                                            required
-                                            className="input-premium h-32"
-                                            placeholder="Detailed feedback about the employee's performance..."
-                                            value={reviewForm.feedback}
-                                            onChange={e => setReviewForm({ ...reviewForm, feedback: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="pt-4 flex gap-4">
-                                        <button type="submit" className="btn bg-warning-500 hover:bg-warning-600 text-white flex-1 py-4 text-sm font-black uppercase tracking-widest shadow-lg">Submit Review</button>
-                                        <button type="button" onClick={() => setShowReviewModal(false)} className="btn btn-secondary px-8">Cancel</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    )
-                }
+                <PerformanceReviewModal
+                    isOpen={showReviewModal}
+                    onClose={() => setShowReviewModal(false)}
+                    onSave={handleReviewSubmit}
+                />
 
-                {
-                    showAttendanceModal && (
-                        <div className="fixed inset-0 bg-secondary-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                            <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-                                <div className="bg-secondary-50 p-6 border-b border-secondary-100 flex justify-between items-center">
-                                    <h3 className="text-xl font-bold text-secondary-900">Correct Attendance</h3>
-                                    <button onClick={() => setShowAttendanceModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
-                                </div>
-                                <form onSubmit={handleAttendanceUpdate} className="p-8 space-y-4">
-                                    <div>
-                                        <label className="label-premium">Check In Time</label>
-                                        <input type="datetime-local" className="input-premium" value={attendanceForm.checkIn} onChange={e => setAttendanceForm({ ...attendanceForm, checkIn: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label className="label-premium">Check Out Time</label>
-                                        <input type="datetime-local" className="input-premium" value={attendanceForm.checkOut} onChange={e => setAttendanceForm({ ...attendanceForm, checkOut: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label className="label-premium">Status</label>
-                                        <select className="input-premium" value={attendanceForm.status} onChange={e => setAttendanceForm({ ...attendanceForm, status: e.target.value })}>
-                                            <option value="PRESENT">Present</option>
-                                            <option value="ABSENT">Absent</option>
-                                            <option value="LEAVE">On Leave</option>
-                                        </select>
-                                    </div>
-                                    <button type="submit" className="btn btn-primary w-full py-4 text-sm font-black uppercase tracking-widest shadow-lg">Update Record</button>
-                                </form>
-                            </div>
-                        </div>
-                    )
-                }
+                <AttendanceModal
+                    isOpen={showAttendanceModal}
+                    onClose={() => setShowAttendanceModal(false)}
+                    onSave={handleAttendanceUpdate}
+                />
 
-                {
-                    showJobModal && (
-                        <div className="fixed inset-0 bg-secondary-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                            <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-                                <div className="bg-primary-50 p-6 border-b border-primary-100 flex justify-between items-center">
-                                    <h3 className="text-xl font-bold text-primary-900">{selectedJob ? 'Edit Job Posting' : 'Post New Job'}</h3>
-                                    <button onClick={() => setShowJobModal(false)} className="text-secondary-400 hover:text-secondary-600">✕</button>
-                                </div>
-                                <form onSubmit={handleJobSubmit} className="p-8 grid grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
-                                    <div className="col-span-2">
-                                        <label className="label-premium">Job Title</label>
-                                        <input type="text" required className="input-premium" value={jobForm.title} onChange={e => setJobForm({ ...jobForm, title: e.target.value })} />
-                                    </div>
-                                    <div className="col-span-2">
-                                        <label className="label-premium">Description</label>
-                                        <textarea required rows={4} className="input-premium" value={jobForm.description} onChange={e => setJobForm({ ...jobForm, description: e.target.value })} />
-                                    </div>
-                                    <div className="col-span-2">
-                                        <label className="label-premium">Requirements</label>
-                                        <textarea rows={3} className="input-premium" value={jobForm.requirements} onChange={e => setJobForm({ ...jobForm, requirements: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label className="label-premium">Location</label>
-                                        <input type="text" className="input-premium" value={jobForm.location} onChange={e => setJobForm({ ...jobForm, location: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label className="label-premium">Salary Range</label>
-                                        <input type="text" className="input-premium" value={jobForm.salaryRange} onChange={e => setJobForm({ ...jobForm, salaryRange: e.target.value })} />
-                                    </div>
-                                    <div>
-                                        <label className="label-premium">Type</label>
-                                        <select className="input-premium" value={jobForm.type} onChange={e => setJobForm({ ...jobForm, type: e.target.value })}>
-                                            <option value="FULL_TIME">Full Time</option>
-                                            <option value="PART_TIME">Part Time</option>
-                                            <option value="CONTRACT">Contract</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="label-premium">Status</label>
-                                        <select className="input-premium" value={jobForm.status} onChange={e => setJobForm({ ...jobForm, status: e.target.value })}>
-                                            <option value="OPEN">Open</option>
-                                            <option value="CLOSED">Closed</option>
-                                            <option value="DRAFT">Draft</option>
-                                        </select>
-                                    </div>
-                                    <div className="col-span-2 pt-6 flex gap-4">
-                                        <button type="submit" className="btn btn-primary flex-1 py-4 text-sm font-black uppercase tracking-widest shadow-lg">Save Job</button>
-                                        <button type="button" onClick={() => setShowJobModal(false)} className="btn btn-secondary px-8">Cancel</button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    )
-                }
+                <JobPostingModal
+                    isOpen={showJobModal}
+                    onClose={() => setShowJobModal(false)}
+                    job={selectedJob}
+                    onSave={handleJobSubmit}
+                />
             </div >
 
         </DashboardLayout >

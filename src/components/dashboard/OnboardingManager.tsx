@@ -2,60 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { Plus, Trash, BookOpen, CheckSquare } from 'lucide-react';
+import { useOnboardingModules, useDepartments, useOnboardingMutations } from '@/hooks/useHR';
 
 export default function OnboardingManager() {
-    const [modules, setModules] = useState<any[]>([]);
-    const [departments, setDepartments] = useState<any[]>([]);
+    const { data: modules = [] } = useOnboardingModules();
+    const { data: departments = [] } = useDepartments();
+    const { createModule } = useOnboardingMutations();
+
     const [isCreating, setIsCreating] = useState(false);
     const [activeTab, setActiveTab] = useState<'BASIC' | 'CONTENT' | 'QUIZ'>('BASIC');
-    const [saving, setSaving] = useState(false);
-
-    // Initial State
-    const initialModuleState = {
-        title: '',
-        type: 'COMPANY',
-        description: '',
-        content: '',
-        departmentId: '',
-        requiredForDesignation: '',
-        order: 1,
-        questions: [{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]
-    };
-
-    const [newModule, setNewModule] = useState<any>(initialModuleState);
-
-    useEffect(() => {
-        fetchModules();
-        fetchDepartments();
-    }, []);
-
-    const fetchModules = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/onboarding/modules', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setModules(data);
-                setNewModule((prev: any) => ({ ...prev, order: data.length + 1 }));
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    };
-
-    const fetchDepartments = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/departments', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) setDepartments(await res.json());
-        } catch (error) {
-            console.error(error);
-        }
-    };
 
     // Form Handlers
     const handleQuestionAdd = () => {
@@ -96,36 +51,45 @@ export default function OnboardingManager() {
         return null;
     };
 
+    const [newModule, setNewModule] = useState<any>({
+        title: '',
+        type: 'COMPANY',
+        description: '',
+        content: '',
+        departmentId: '',
+        requiredForDesignation: '',
+        order: modules.length + 1,
+        questions: [{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]
+    });
+
+    useEffect(() => {
+        setNewModule((m: any) => ({ ...m, order: modules.length + 1 }));
+    }, [modules.length]);
+
     const saveModule = async () => {
         const error = validateForm();
         if (error) {
-            alert(error); // Ideally use toast
+            alert(error);
             return;
         }
 
-        setSaving(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/hr/onboarding/modules', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(newModule)
+            await createModule.mutateAsync(newModule);
+            setIsCreating(false);
+            setNewModule({
+                title: '',
+                type: 'COMPANY',
+                description: '',
+                content: '',
+                departmentId: '',
+                requiredForDesignation: '',
+                order: modules.length + 1,
+                questions: [{ question: '', options: ['', '', '', ''], correctAnswer: 0 }]
             });
-
-            if (res.ok) {
-                setIsCreating(false);
-                fetchModules();
-                setNewModule({ ...initialModuleState, order: modules.length + 2 });
-                setActiveTab('BASIC');
-            } else {
-                const errData = await res.json();
-                alert(`Failed to save: ${errData.error || 'Unknown error'}`);
-            }
-        } catch (err) {
+            setActiveTab('BASIC');
+        } catch (err: any) {
             console.error(err);
-            alert('Network error occurred');
-        } finally {
-            setSaving(false);
+            alert(`Failed to save: ${err.message}`);
         }
     };
 
@@ -319,10 +283,10 @@ export default function OnboardingManager() {
                                         <button onClick={() => setIsCreating(false)} className="btn btn-secondary px-6 rounded-xl font-bold">Cancel</button>
                                         <button
                                             onClick={saveModule}
-                                            disabled={saving}
+                                            disabled={createModule.isPending}
                                             className="btn btn-primary px-8 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-primary-200 disabled:opacity-70 disabled:cursor-not-allowed"
                                         >
-                                            {saving ? 'Saving...' : '💾 Save Module'}
+                                            {createModule.isPending ? 'Saving...' : '💾 Save Module'}
                                         </button>
                                     </div>
                                 </div>

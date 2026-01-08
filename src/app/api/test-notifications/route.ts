@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth-legacy';
 import { createNotification } from '@/lib/notifications';
 
 export async function POST(req: NextRequest) {

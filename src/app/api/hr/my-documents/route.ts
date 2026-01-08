@@ -1,34 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
 
-export async function GET(req: NextRequest) {
-    try {
-        const user = await getAuthenticatedUser();
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const application = await prisma.jobApplication.findFirst({
-            where: { applicantEmail: user.email },
-            include: {
-                jobPosting: {
-                    include: {
-                        company: { select: { name: true } }
+export const GET = authorizedRoute(
+    [],
+    async (req: NextRequest, user) => {
+        try {
+            const application = await prisma.jobApplication.findFirst({
+                where: { applicantEmail: user.email },
+                include: {
+                    jobPosting: {
+                        include: {
+                            company: { select: { name: true } }
+                        }
                     }
-                }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
+                },
+                orderBy: { createdAt: 'desc' }
+            });
 
-        const profile = await prisma.employeeProfile.findUnique({
-            where: { userId: user.id },
-            include: { documents: true }
-        });
+            const profile = await prisma.employeeProfile.findUnique({
+                where: { userId: user.id },
+                include: { documents: true }
+            });
 
-        return NextResponse.json({
-            application,
-            profile
-        });
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+            return NextResponse.json({
+                application,
+                profile
+            });
+        } catch (error) {
+            return createErrorResponse(error);
+        }
     }
-}
+);

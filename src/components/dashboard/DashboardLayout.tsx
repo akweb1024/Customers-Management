@@ -5,18 +5,19 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { registerPush } from '@/lib/push-register';
 import GlobalSearch from './GlobalSearch';
-
+import { useSession, signOut, signIn } from 'next-auth/react';
 interface DashboardLayoutProps {
     children: React.ReactNode;
     userRole?: string;
 }
 
-export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, userRole: propUserRole = 'CUSTOMER' }: DashboardLayoutProps) {
+    const { data: session, status, update } = useSession();
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const [notifications, setNotifications] = useState<any[]>([]);
     const [isImpersonating, setIsImpersonating] = useState(false);
     const [mounted, setMounted] = useState(false);
-    const [user, setUser] = useState<any>(null);
+    const [availableCompanies, setAvailableCompanies] = useState<any[]>([]);
     const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
     const pathname = usePathname();
     const router = useRouter();
@@ -25,11 +26,7 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
         if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
 
         try {
-            const token = localStorage.getItem('token');
-            if (!token) return;
-            const res = await fetch('/api/notifications', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await fetch('/api/notifications');
             if (res.ok) {
                 const data = await res.json();
                 setNotifications(data);
@@ -39,18 +36,11 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
         }
     }, []);
 
-    const [availableCompanies, setAvailableCompanies] = useState<any[]>([]);
-
     const fetchUserContext = useCallback(async () => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) return;
-            const res = await fetch('/api/auth/me', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await fetch('/api/auth/me');
             if (res.ok) {
                 const data = await res.json();
-                setUser(data.user);
                 setAvailableCompanies(data.availableCompanies || []);
                 localStorage.setItem('user', JSON.stringify(data.user));
                 localStorage.setItem('availableCompanies', JSON.stringify(data.availableCompanies));
@@ -62,28 +52,28 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
 
     useEffect(() => {
         setMounted(true);
-        fetchNotifications();
-        fetchUserContext();
-        registerPush();
-
-        // Check if impersonating
-        if (typeof window !== 'undefined') {
-            setIsImpersonating(!!localStorage.getItem('adminToken'));
-            const savedUser = localStorage.getItem('user');
-            if (savedUser) setUser(JSON.parse(savedUser));
-            const savedCompanies = localStorage.getItem('availableCompanies');
-            if (savedCompanies) setAvailableCompanies(JSON.parse(savedCompanies));
+        if (status === 'authenticated') {
+            fetchNotifications();
+            fetchUserContext();
+            registerPush();
         }
 
-        // Polling for notifications every 60 seconds, only if visible
+        if (status === 'unauthenticated') {
+            router.push('/login');
+        }
+
+        if (typeof window !== 'undefined') {
+            setIsImpersonating(!!localStorage.getItem('adminToken'));
+        }
+
         const interval = setInterval(() => {
-            if (document.visibilityState === 'visible') {
+            if (document.visibilityState === 'visible' && status === 'authenticated') {
                 fetchNotifications();
             }
         }, 60000);
 
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
+            if (document.visibilityState === 'visible' && status === 'authenticated') {
                 fetchNotifications();
             }
         };
@@ -94,15 +84,11 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
             clearInterval(interval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [fetchNotifications]);
+    }, [fetchNotifications, fetchUserContext, status, router]);
 
     const markAllAsRead = async () => {
         try {
-            const token = localStorage.getItem('token');
-            await fetch('/api/notifications', {
-                method: 'PATCH',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            await fetch('/api/notifications', { method: 'PATCH' });
             setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
         } catch (err) {
             console.error('Mark read error:', err);
@@ -111,12 +97,8 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
 
     const handleNotificationClick = async (notification: any) => {
         try {
-            const token = localStorage.getItem('token');
             if (!notification.isRead) {
-                await fetch(`/api/notifications/${notification.id}`, {
-                    method: 'PATCH',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                await fetch(`/api/notifications/${notification.id}`, { method: 'PATCH' });
                 setNotifications(prev => prev.map(n =>
                     n.id === notification.id ? { ...n, isRead: true } : n
                 ));
@@ -130,27 +112,39 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
     };
 
     const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('adminToken');
-        localStorage.removeItem('adminUser');
-        router.push('/login');
+        localStorage.clear();
+        signOut({ callbackUrl: '/login' });
     };
 
-    const handleRevertAdmin = () => {
+    const handleRevertAdmin = async () => {
         const adminToken = localStorage.getItem('adminToken');
         const adminUser = localStorage.getItem('adminUser');
 
         if (adminToken && adminUser) {
-            localStorage.setItem('token', adminToken);
-            localStorage.setItem('user', adminUser);
-            localStorage.removeItem('adminToken');
-            localStorage.removeItem('adminUser');
-            window.location.href = '/dashboard';
+            // Restore session via NextAuth
+            const result = await signIn('credentials', {
+                token: adminToken,
+                redirect: false
+            });
+
+            if (result?.ok) {
+                localStorage.setItem('token', adminToken);
+                localStorage.setItem('user', adminUser);
+                localStorage.removeItem('adminToken');
+                localStorage.removeItem('adminUser');
+                window.location.href = '/dashboard';
+            } else {
+                console.error("Failed to revert session");
+                // Fallback attempt with hard reload in case cookie was somehow set
+                window.location.href = '/dashboard';
+            }
         }
     };
 
-    const displayRole = mounted && user?.company?.name ? user.company.name : userRole.replace('_', ' ');
+    const user = session?.user as any;
+    const finalRole = user?.role || propUserRole;
+
+    const displayRole = mounted && user?.company?.name ? user.company.name : finalRole.replace('_', ' ');
     const displayEmail = mounted && user?.email ? user.email.split('@')[0] : 'User';
     const displayFullEmail = mounted && user?.email ? user.email : 'user@example.com';
 
@@ -170,6 +164,15 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                 items: [
                     { name: 'HR Management', href: '/dashboard/hr-management', icon: '👨‍💼', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
                     { name: 'Recruitment', href: '/dashboard/recruitment', icon: '🎯', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                ]
+            },
+            {
+                title: 'Manager',
+                items: [
+                    { name: 'Work Reports', href: '/dashboard/hr-management?tab=reports', icon: '📝', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                    { name: 'Leave Requests', href: '/dashboard/hr-management?tab=leaves', icon: '🏖️', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                    { name: 'Attendance', href: '/dashboard/hr-management?tab=attendance', icon: '🕒', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+                    { name: 'Productivity', href: '/dashboard/hr-management?tab=productivity', icon: '⚡', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
                 ]
             },
             {
@@ -205,7 +208,7 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                 title: 'Resources & Team',
                 items: [
                     { name: 'Knowledge Base', href: '/dashboard/knowledge-base', icon: '📚', roles: ['*'] },
-                    { name: 'User Directory', href: '/dashboard/users', icon: '👥', roles: ['SUPER_ADMIN', 'ADMIN'] },
+                    { name: 'User Directory', href: '/dashboard/users', icon: '👥', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEAM_LEADER'] },
                     { name: 'Manage Team', href: '/dashboard/team', icon: '👥', roles: ['MANAGER', 'TEAM_LEADER'] },
                 ]
             },
@@ -236,12 +239,11 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
             }
         ];
 
-        const currentRole = user?.role || userRole;
         return categories.map(cat => ({
             ...cat,
-            items: cat.items.filter(item => item.roles.includes('*') || item.roles.includes(currentRole))
+            items: cat.items.filter(item => item.roles.includes('*') || item.roles.includes(finalRole))
         })).filter(cat => cat.items.length > 0);
-    }, [userRole, user?.role]);
+    }, [finalRole]);
 
     return (
         <div className="min-h-screen bg-secondary-50">
@@ -343,7 +345,7 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                             <div className="relative group">
                                 <button className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-secondary-100 transition-colors">
                                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 text-white flex items-center justify-center font-bold text-sm shadow-lg">
-                                        {userRole.charAt(0)}
+                                        {finalRole.charAt(0)}
                                     </div>
                                     <div className="hidden md:block text-left">
                                         <p className="text-sm font-semibold text-secondary-900 leading-tight">
@@ -367,7 +369,7 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                                                 {displayFullEmail}
                                             </p>
                                             <p className="text-xs text-secondary-500 mt-1">
-                                                Role: <span className="font-semibold text-primary-600">{userRole.replace('_', ' ')}</span>
+                                                Role: <span className="font-semibold text-primary-600">{finalRole.replace('_', ' ')}</span>
                                             </p>
                                         </div>
 
@@ -404,18 +406,16 @@ export default function DashboardLayout({ children, userRole = 'CUSTOMER' }: Das
                                                         <button
                                                             key={comp.id}
                                                             onClick={async () => {
-                                                                const token = localStorage.getItem('token');
                                                                 const res = await fetch('/api/auth/select-company', {
                                                                     method: 'POST',
-                                                                    headers: {
-                                                                        'Content-Type': 'application/json',
-                                                                        'Authorization': `Bearer ${token}`
-                                                                    },
+                                                                    headers: { 'Content-Type': 'application/json' },
                                                                     body: JSON.stringify({ companyId: comp.id })
                                                                 });
                                                                 if (res.ok) {
                                                                     const data = await res.json();
-                                                                    localStorage.setItem('token', data.token);
+                                                                    if (data.token) localStorage.setItem('token', data.token);
+                                                                    // Update NextAuth session
+                                                                    await update({ companyId: comp.id });
                                                                     window.location.reload();
                                                                 }
                                                             }}

@@ -1,43 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
-    try {
-        const decoded = await getAuthenticatedUser();
-        if (!decoded) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+export const GET = authorizedRoute(
+    [],
+    async (req: NextRequest, user) => {
+        try {
+            const fullUser = await prisma.user.findUnique({
+                where: { id: user.id },
+                include: {
+                    company: true,
+                    companies: true,
+                    customerProfile: true
+                }
+            });
 
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.id },
-            include: {
-                company: true,
-                companies: true,
-                customerProfile: true
+            if (!fullUser) {
+                return createErrorResponse('User not found', 404);
             }
-        });
 
-        if (!user) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+            // Determine available companies
+            let availableCompanies = fullUser.companies;
+            if (fullUser.role === 'SUPER_ADMIN') {
+                availableCompanies = await prisma.company.findMany();
+            }
+
+            const { password, ...userWithoutPassword } = fullUser;
+
+            return NextResponse.json({
+                user: userWithoutPassword,
+                availableCompanies
+            });
+        } catch (error) {
+            return createErrorResponse(error);
         }
-
-        // Determing available companies
-        let availableCompanies = user.companies;
-        if (user.role === 'SUPER_ADMIN') {
-            availableCompanies = await prisma.company.findMany();
-        }
-
-        const { password, ...userWithoutPassword } = user;
-
-        return NextResponse.json({
-            user: userWithoutPassword,
-            availableCompanies
-        });
-    } catch (error) {
-        console.error('Auth Me Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-}
+);

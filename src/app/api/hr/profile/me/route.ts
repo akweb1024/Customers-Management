@@ -1,33 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
 
-export async function GET(req: NextRequest) {
-    try {
-        const user = await getAuthenticatedUser();
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export const GET = authorizedRoute(
+    [],
+    async (req: NextRequest, user) => {
+        try {
+            const profile = await prisma.employeeProfile.findFirst({
+                where: { userId: user.id },
+                include: {
+                    user: {
+                        select: {
+                            name: true,
+                            email: true,
+                            role: true,
+                            companies: { select: { name: true, website: true, address: true, logoUrl: true } }
+                        }
+                    },
+                    documents: true,
+                    digitalDocuments: true
+                }
+            });
 
-        const profile = await prisma.employeeProfile.findFirst({
-            where: { userId: user.id },
-            include: {
-                user: {
-                    select: {
-                        name: true,
-                        email: true,
-                        role: true,
-                        companies: { select: { name: true, website: true, address: true, logoUrl: true } }
-                    }
-                },
-                documents: true,
-                digitalDocuments: true
-            }
-        });
+            if (!profile) return createErrorResponse('Profile not found', 404);
 
-        if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-
-        return NextResponse.json(profile);
-    } catch (error) {
-        console.error('Fetch My Profile Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+            return NextResponse.json(profile);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
     }
-}
+);

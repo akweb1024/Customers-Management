@@ -7,12 +7,14 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import FormattedDate from '@/components/common/FormattedDate';
 import CommunicationForm from '@/components/dashboard/CommunicationForm';
 import CustomerAssignmentManager from '@/components/dashboard/CustomerAssignmentManager';
+import { useCustomer, useCustomerMutations } from '@/hooks/useCRM';
 
 export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
     const router = useRouter();
-    const [customer, setCustomer] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
+    const { data: customer, isLoading: loading, refetch: fetchCustomer } = useCustomer(id);
+    const { updateCustomer, updateCommunicationLog } = useCustomerMutations();
+
     const [userRole, setUserRole] = useState<string>('CUSTOMER');
     const [activeTab, setActiveTab] = useState('overview');
     const [showEditModal, setShowEditModal] = useState(false);
@@ -40,34 +42,12 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         }
     }, [showEditModal, userRole]);
 
-    const fetchCustomer = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/customers/${id}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                setCustomer(data);
-            } else {
-                router.push('/dashboard/customers');
-            }
-        } catch (error) {
-            console.error('Error fetching customer:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
         const userData = localStorage.getItem('user');
         if (userData) {
             const user = JSON.parse(userData);
             setUserRole(user.role);
         }
-
-        fetchCustomer();
     }, [id, router]);
 
     // Handle incoming follow-up from query params
@@ -140,6 +120,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         setActionLoading(true);
         const formData = new FormData(e.currentTarget);
         const payload: any = {
+            id: customer.id,
             name: formData.get('name'),
             organizationName: formData.get('organizationName'),
             primaryPhone: formData.get('primaryPhone'),
@@ -160,23 +141,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         }
 
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/customers/${customer.id}`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (res.ok) {
-                const updated = await res.json();
-                setCustomer({ ...customer, ...updated });
-                setShowEditModal(false);
-            } else {
-                alert('Failed to update profile');
-            }
+            await updateCustomer.mutateAsync(payload);
+            setShowEditModal(false);
         } catch (err) {
             alert('Error updating profile');
         } finally {
@@ -189,33 +155,15 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         setActionLoading(true);
         const formData = new FormData(e.currentTarget);
         const payload = {
+            id: editingLog.id,
             nextFollowUpDate: formData.get('nextFollowUpDate') || null,
             outcome: formData.get('outcome'),
             notes: formData.get('notes')
         };
 
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`/api/communications/${editingLog.id}`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (res.ok) {
-                // Update local state instead of full reload
-                const updatedLog = await res.json();
-                setCustomer({
-                    ...customer,
-                    communications: customer.communications.map((c: any) => c.id === updatedLog.id ? { ...c, ...updatedLog } : c)
-                });
-                setEditingLog(null);
-            } else {
-                alert('Failed to update log');
-            }
+            await updateCommunicationLog.mutateAsync(payload);
+            setEditingLog(null);
         } catch (error) {
             console.error('Update error:', error);
             alert('Error updating log');
@@ -622,7 +570,6 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                                         previousFollowUpId={activeFollowUpId}
                                         onSuccess={() => {
                                             setActiveFollowUpId(null);
-                                            window.location.reload();
                                         }}
                                     />
                                 </div>

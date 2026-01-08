@@ -20,6 +20,7 @@ export default function RecruitmentDashboard() {
     const [jobs, setJobs] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'PIPELINE' | 'JOBS'>('PIPELINE');
     const [pipelineView, setPipelineView] = useState<'TABLE' | 'KANBAN'>('KANBAN');
+    const [resultForm, setResultForm] = useState<{ show: boolean, level: number, result: 'PASSED' | 'FAILED', score: number, feedback: string } | null>(null);
 
     useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -73,22 +74,30 @@ export default function RecruitmentDashboard() {
         }
     };
 
-    const handleInterviewAction = async (level: number, result: 'PASSED' | 'FAILED') => {
-        const token = localStorage.getItem('token');
-        const feedback = prompt(`Enter feedback for Level ${level} interview:`);
-        if (feedback === null) return;
+    const submitInterviewResult = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!resultForm) return;
 
+        const token = localStorage.getItem('token');
         const res = await fetch('/api/recruitment/interviews', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ applicationId: selectedApp.id, level, result, feedback, type: 'COMPLETE' })
+            body: JSON.stringify({
+                applicationId: selectedApp.id,
+                level: resultForm.level,
+                result: resultForm.result,
+                feedback: resultForm.feedback,
+                score: resultForm.score,
+                type: 'COMPLETE'
+            })
         });
 
         if (res.ok) {
-            alert('Interview result recorded');
+            alert('Interview result recorded successfully!');
+            setResultForm(null);
             setSelectedApp(null);
             fetchApplications();
         }
@@ -501,20 +510,57 @@ export default function RecruitmentDashboard() {
 
                                                 <div className="space-y-3">
                                                     <p className="text-xs font-bold text-secondary-400 uppercase tracking-widest text-center">Record Level {selectedApp.status.at(-1)} Result</p>
-                                                    <div className="flex gap-4">
-                                                        <button
-                                                            onClick={() => handleInterviewAction(parseInt(selectedApp.status.at(-1) || '1'), 'PASSED')}
-                                                            className="btn btn-primary flex-1 py-3 rounded-xl font-bold"
-                                                        >
-                                                            Pass Round
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleInterviewAction(parseInt(selectedApp.status.at(-1) || '1'), 'FAILED')}
-                                                            className="btn bg-danger-600 text-white hover:bg-danger-700 flex-1 py-3 rounded-xl font-bold"
-                                                        >
-                                                            Reject
-                                                        </button>
-                                                    </div>
+                                                    {!resultForm ? (
+                                                        <div className="flex gap-4">
+                                                            <button
+                                                                onClick={() => setResultForm({ show: true, level: parseInt(selectedApp.status.at(-1) || '1'), result: 'PASSED', score: 7, feedback: '' })}
+                                                                className="btn btn-primary flex-1 py-3 rounded-xl font-bold"
+                                                            >
+                                                                Pass Round
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setResultForm({ show: true, level: parseInt(selectedApp.status.at(-1) || '1'), result: 'FAILED', score: 3, feedback: '' })}
+                                                                className="btn bg-danger-600 text-white hover:bg-danger-700 flex-1 py-3 rounded-xl font-bold"
+                                                            >
+                                                                Reject
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <form onSubmit={submitInterviewResult} className="bg-white p-4 rounded-xl border-2 border-primary-100 space-y-4 animate-in zoom-in duration-200">
+                                                            <div className="flex justify-between items-center">
+                                                                <h4 className={`font-bold ${resultForm.result === 'PASSED' ? 'text-success-600' : 'text-danger-600'}`}>
+                                                                    Mark as {resultForm.result}
+                                                                </h4>
+                                                                <button type="button" onClick={() => setResultForm(null)} className="text-xs text-secondary-400 font-bold hover:text-secondary-600">Cancel</button>
+                                                            </div>
+                                                            <div>
+                                                                <label className="label text-[10px]">Candidate Score (1-10)</label>
+                                                                <div className="flex items-center gap-4">
+                                                                    <input
+                                                                        type="range" min="1" max="10" step="1"
+                                                                        className="flex-1 accent-primary-600 cursor-pointer"
+                                                                        value={resultForm.score}
+                                                                        onChange={(e) => setResultForm({ ...resultForm, score: parseInt(e.target.value) })}
+                                                                    />
+                                                                    <span className="font-black text-xl text-primary-600 w-8 text-center">{resultForm.score}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <label className="label text-[10px]">Interviewer Feedback</label>
+                                                                <textarea
+                                                                    className="input text-sm"
+                                                                    rows={3}
+                                                                    placeholder="Key strengths, weaknesses, and remarks..."
+                                                                    value={resultForm.feedback}
+                                                                    onChange={(e) => setResultForm({ ...resultForm, feedback: e.target.value })}
+                                                                    required
+                                                                ></textarea>
+                                                            </div>
+                                                            <button type="submit" className="btn btn-primary w-full py-3 rounded-xl font-bold shadow-lg">
+                                                                Submit Evaluation
+                                                            </button>
+                                                        </form>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}

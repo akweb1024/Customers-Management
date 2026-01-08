@@ -1,71 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
 
 // GET: Fetch all onboarding modules for the company
-export async function GET(req: NextRequest) {
-    try {
-        const user = await getAuthenticatedUser();
-        if (!user || !['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'HR_MANAGER'].includes(user.role)) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export const GET = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'HR_MANAGER', 'TEAM_LEADER'],
+    async (req: NextRequest, user) => {
+        try {
+            if (!user.companyId) return createErrorResponse('Company association required', 403);
+
+            const modules = await prisma.onboardingModule.findMany({
+                where: { companyId: user.companyId },
+                include: { questions: true },
+                orderBy: { order: 'asc' }
+            });
+
+            return NextResponse.json(modules);
+        } catch (error) {
+            return createErrorResponse(error);
         }
-
-        const userCompanyId = (user as any).companyId;
-
-        const modules = await prisma.onboardingModule.findMany({
-            where: { companyId: userCompanyId },
-            include: { questions: true },
-            orderBy: { order: 'asc' }
-        });
-
-        return NextResponse.json(modules);
-    } catch (error) {
-        console.error('Onboarding Modules Fetch Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-}
+);
 
 // POST: Create a new onboarding module
-export async function POST(req: NextRequest) {
-    try {
-        const user = await getAuthenticatedUser();
-        if (!user || !['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'HR_MANAGER'].includes(user.role)) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export const POST = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'HR_MANAGER'],
+    async (req: NextRequest, user) => {
+        try {
+            if (!user.companyId) return createErrorResponse('Company association required', 403);
+
+            const body = await req.json();
+            const { title, type, description, content, departmentId, requiredForDesignation, questions, order } = body;
+
+            if (!title || !type || !content) {
+                return createErrorResponse('Missing required fields', 400);
+            }
+
+            const newModule = await prisma.onboardingModule.create({
+                data: {
+                    companyId: user.companyId,
+                    title,
+                    type, // COMPANY, ROLE, DEPARTMENT
+                    description,
+                    content,
+                    departmentId: departmentId || null,
+                    requiredForDesignation: requiredForDesignation || null,
+                    order: order || 0,
+                    questions: {
+                        create: Array.isArray(questions) ? questions.map((q: any) => ({
+                            question: q.question,
+                            options: q.options,
+                            correctAnswer: parseInt(q.correctAnswer)
+                        })) : []
+                    }
+                },
+                include: { questions: true }
+            });
+
+            return NextResponse.json(newModule);
+        } catch (error) {
+            return createErrorResponse(error);
         }
-
-        const body = await req.json();
-        const { title, type, description, content, departmentId, requiredForDesignation, questions, order } = body;
-
-        if (!title || !type || !content) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-        }
-
-        const userCompanyId = (user as any).companyId;
-
-        const module = await prisma.onboardingModule.create({
-            data: {
-                companyId: userCompanyId,
-                title,
-                type, // COMPANY, ROLE, DEPARTMENT
-                description,
-                content,
-                departmentId: departmentId || null, // Handle empty string
-                requiredForDesignation: requiredForDesignation || null, // Handle empty string
-                order: order || 0,
-                questions: {
-                    create: Array.isArray(questions) ? questions.map((q: any) => ({
-                        question: q.question,
-                        options: q.options, // Ensure this matches String[] 
-                        correctAnswer: parseInt(q.correctAnswer)
-                    })) : []
-                }
-            },
-            include: { questions: true }
-        });
-
-        return NextResponse.json(module);
-    } catch (error) {
-        console.error('Onboarding Module Creation Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-}
+);

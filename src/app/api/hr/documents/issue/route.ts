@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
 
 // Helper to replace placeholders
 const hydrateTemplate = (content: string, vars: Record<string, string>) => {
@@ -14,97 +15,92 @@ const hydrateTemplate = (content: string, vars: Record<string, string>) => {
 };
 
 // POST: Issue a document to an employee
-export async function POST(req: NextRequest) {
-    try {
-        const user = await getAuthenticatedUser();
-        if (!user || !['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'HR_MANAGER'].includes(user.role)) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+export const POST = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'HR_MANAGER'],
+    async (req: NextRequest, user) => {
+        try {
+            const body = await req.json();
+            const { templateId, employeeId } = body;
 
-        const body = await req.json();
-        const { templateId, employeeId } = body;
+            const template = await prisma.documentTemplate.findUnique({ where: { id: templateId } });
+            const employee = await prisma.employeeProfile.findUnique({
+                where: { id: employeeId },
+                include: { user: true }
+            });
 
-        const template = await prisma.documentTemplate.findUnique({ where: { id: templateId } });
-        const employee = await prisma.employeeProfile.findUnique({
-            where: { id: employeeId },
-            include: { user: true }
-        });
-
-        if (!template || !employee) {
-            return NextResponse.json({ error: 'Template or Employee not found' }, { status: 404 });
-        }
-
-        // Fetch Company Context
-        const company = await prisma.company.findUnique({ where: { id: template.companyId } });
-
-        // Prepare Variables
-        const vars = {
-            name: employee.user.name || employee.user.email.split('@')[0],
-            email: employee.user.email,
-            designation: employee.designation || 'Specialist',
-            date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
-            salary: (employee.baseSalary || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' }),
-            address: employee.address || 'Address not provided',
-            joiningDate: employee.dateOfJoining ? new Date(employee.dateOfJoining).toLocaleDateString('en-GB') : 'Date to be decided',
-            companyName: company?.name || 'STM Journal Solutions',
-            companyAddress: company?.address || 'Noida, UP',
-        };
-
-        const resolvedContent = hydrateTemplate(template.content, vars);
-
-        const doc = await prisma.digitalDocument.create({
-            data: {
-                templateId,
-                employeeId,
-                title: template.title,
-                content: resolvedContent,
-                status: 'PENDING'
+            if (!template || !employee) {
+                return createErrorResponse('Template or Employee not found', 404);
             }
-        });
 
-        return NextResponse.json(doc);
-    } catch (error) {
-        console.error('Issue Document Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+            // Fetch Company Context
+            const company = await prisma.company.findUnique({ where: { id: template.companyId } });
+
+            // Prepare Variables
+            const vars = {
+                name: employee.user.name || employee.user.email.split('@')[0],
+                email: employee.user.email,
+                designation: employee.designation || 'Specialist',
+                date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+                salary: (employee.baseSalary || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' }),
+                address: employee.address || 'Address not provided',
+                joiningDate: employee.dateOfJoining ? new Date(employee.dateOfJoining).toLocaleDateString('en-GB') : 'Date to be decided',
+                companyName: company?.name || 'STM Journal Solutions',
+                companyAddress: company?.address || 'Noida, UP',
+            };
+
+            const resolvedContent = hydrateTemplate(template.content, vars);
+
+            const doc = await prisma.digitalDocument.create({
+                data: {
+                    templateId,
+                    employeeId,
+                    title: template.title,
+                    content: resolvedContent,
+                    status: 'PENDING'
+                }
+            });
+
+            return NextResponse.json(doc);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
     }
-}
+);
 
 // PATCH: Employee Sign
-export async function PATCH(req: NextRequest) {
-    try {
-        const user = await getAuthenticatedUser();
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export const PATCH = authorizedRoute(
+    [],
+    async (req: NextRequest, user) => {
+        try {
+            const body = await req.json();
+            const { id, action } = body; // action = SIGN
 
-        const body = await req.json();
-        const { id, action } = body; // action = SIGN
+            if (action !== 'SIGN') return createErrorResponse('Invalid action', 400);
 
-        if (action !== 'SIGN') return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+            const doc = await prisma.digitalDocument.findUnique({
+                where: { id },
+                include: { employee: true }
+            });
 
-        const doc = await prisma.digitalDocument.findUnique({
-            where: { id },
-            include: { employee: true }
-        });
+            if (!doc) return createErrorResponse('Document not found', 404);
 
-        if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 });
-
-        // Verify ownership
-        if (doc.employee.userId !== user.id) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
-
-        const updated = await prisma.digitalDocument.update({
-            where: { id },
-            data: {
-                status: 'SIGNED',
-                signedAt: new Date(),
-                signatureIp: req.headers.get('x-forwarded-for') || 'ip-unknown'
+            // Verify ownership
+            if (doc.employee.userId !== user.id) {
+                return createErrorResponse('Forbidden', 403);
             }
-        });
 
-        return NextResponse.json(updated);
+            const updated = await prisma.digitalDocument.update({
+                where: { id },
+                data: {
+                    status: 'SIGNED',
+                    signedAt: new Date(),
+                    signatureIp: req.headers.get('x-forwarded-for') || 'ip-unknown'
+                }
+            });
 
-    } catch (error) {
-        console.error('Sign Document Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+            return NextResponse.json(updated);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
     }
-}
+);

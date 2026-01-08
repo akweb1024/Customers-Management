@@ -1,71 +1,128 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { holidaySchema, updateHolidaySchema } from '@/lib/validators/hr';
+import { z } from 'zod';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
 
-export async function GET(req: NextRequest) {
-    try {
-        const user = await getAuthenticatedUser();
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export const GET = authorizedRoute(
+    [],
+    async (req: NextRequest, user) => {
+        try {
+            const { searchParams } = new URL(req.url);
+            const companyId = searchParams.get('companyId') || user.companyId;
 
-        const { searchParams } = new URL(req.url);
-        const companyId = searchParams.get('companyId') || (user as any).companyId;
-
-        const holidays = await prisma.holiday.findMany({
-            where: {
-                OR: [
-                    { companyId },
-                    { companyId: null } // Global holidays
-                ]
-            },
-            orderBy: { date: 'asc' }
-        });
-
-        return NextResponse.json(holidays);
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-}
-
-export async function POST(req: NextRequest) {
-    try {
-        const user = await getAuthenticatedUser();
-        if (!user || !['SUPER_ADMIN', 'ADMIN', 'HR_MANAGER'].includes(user.role)) {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
-
-        const body = await req.json();
-
-        if (Array.isArray(body)) {
-            // Bulk Create
-            const holidaysData = body.map((h: any) => ({
-                name: h.name,
-                date: new Date(h.date),
-                type: h.type || 'PUBLIC',
-                description: h.description,
-                companyId: (user as any).companyId
-            }));
-
-            const result = await prisma.holiday.createMany({
-                data: holidaysData
+            const holidays = await prisma.holiday.findMany({
+                where: {
+                    OR: [
+                        { companyId },
+                        { companyId: null } // Global holidays
+                    ]
+                },
+                orderBy: { date: 'asc' }
             });
 
-            return NextResponse.json({ count: result.count, message: 'Bulk import successful' });
+            return NextResponse.json(holidays);
+        } catch (error) {
+            return createErrorResponse(error);
         }
-
-        const { name, date, type, description } = body;
-
-        const holiday = await prisma.holiday.create({
-            data: {
-                name,
-                date: new Date(date),
-                type: type || 'PUBLIC',
-                description,
-                companyId: (user as any).companyId
-            }
-        });
-
-        return NextResponse.json(holiday);
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
     }
-}
+);
+
+export const POST = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'HR_MANAGER', 'MANAGER'],
+    async (req: NextRequest, user) => {
+        try {
+            const body = await req.json();
+
+            if (Array.isArray(body)) {
+                // Bulk Create
+                const validation = z.array(holidaySchema).safeParse(body);
+                if (!validation.success) {
+                    return createErrorResponse(validation.error);
+                }
+
+                const holidaysData = validation.data.map((h) => ({
+                    name: h.name,
+                    date: h.date,
+                    type: h.type,
+                    description: h.description,
+                    companyId: user.companyId
+                }));
+
+                const result = await prisma.holiday.createMany({
+                    data: holidaysData
+                });
+
+                return NextResponse.json({ count: result.count, message: 'Bulk import successful' });
+            }
+
+            // Single Create
+            const validation = holidaySchema.safeParse(body);
+            if (!validation.success) {
+                return createErrorResponse(validation.error);
+            }
+            const { name, date, type, description } = validation.data;
+
+            const holiday = await prisma.holiday.create({
+                data: {
+                    name,
+                    date,
+                    type,
+                    description,
+                    companyId: user.companyId
+                }
+            });
+
+            return NextResponse.json(holiday);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
+    }
+);
+
+export const PUT = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'HR_MANAGER', 'MANAGER'],
+    async (req: NextRequest, user) => {
+        try {
+            const body = await req.json();
+
+            const validation = updateHolidaySchema.safeParse(body);
+            if (!validation.success) {
+                return createErrorResponse(validation.error);
+            }
+
+            const { id, ...updates } = validation.data;
+            if (!id) return createErrorResponse('ID is required', 400);
+
+            const holiday = await prisma.holiday.update({
+                where: { id },
+                data: updates
+            });
+
+            return NextResponse.json(holiday);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
+    }
+);
+
+export const DELETE = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'HR_MANAGER', 'MANAGER'],
+    async (req: NextRequest, user) => {
+        try {
+            const { searchParams } = new URL(req.url);
+            const id = searchParams.get('id');
+
+            if (!id) return createErrorResponse('ID is required', 400);
+
+            await prisma.holiday.delete({
+                where: { id }
+            });
+
+            return NextResponse.json({ message: 'Holiday deleted successfully' });
+        } catch (error) {
+            return createErrorResponse(error);
+        }
+    }
+);

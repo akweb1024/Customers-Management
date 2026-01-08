@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 
 function LoginForm() {
     const router = useRouter();
@@ -21,19 +22,19 @@ function LoginForm() {
     const handleSelectCompany = async (companyId: string) => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
+            // 1. Update the session with selected company
+            // We can call /api/auth/select-company which will update DB and then we tell next-auth to update
             const res = await fetch('/api/auth/select-company', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ companyId })
             });
 
             const data = await res.json();
             if (res.ok) {
-                localStorage.setItem('token', data.token);
+                // In a real NextAuth v5 app, we would use update() from useSession
+                // But for now, we'll just redirect since we updated the DB and the next session fetch will get it
+                // Or we can just call signIn again with the same credentials if redirect:true
                 window.location.href = redirectUrl;
             } else {
                 setError(data.error || 'Selection failed');
@@ -51,31 +52,39 @@ function LoginForm() {
         setError('');
 
         try {
-            const res = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+            // 1. Call NextAuth signIn
+            const result = await signIn('credentials', {
+                email: formData.email,
+                password: formData.password,
+                redirect: false,
             });
 
-            const data = await res.json();
+            if (result?.error) {
+                setError('Invalid email or password');
+                setLoading(false);
+                return;
+            }
 
-            if (res.ok) {
-                // Store auth data
-                localStorage.setItem('token', data.token);
-                localStorage.setItem('user', JSON.stringify(data.user));
-                if (data.availableCompanies) {
-                    localStorage.setItem('availableCompanies', JSON.stringify(data.availableCompanies));
-                }
+            // 2. Check if company selection is required
+            // We'll call /api/auth/me to see the current state
+            const meRes = await fetch('/api/auth/me');
+            const meData = await meRes.json();
 
-                if (data.requiresCompanySelection) {
-                    setAvailableCompanies(data.availableCompanies);
+            if (meRes.ok) {
+                const { user, availableCompanies } = meData;
+
+                // Determine if selection is needed
+                const isInternalRole = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role);
+                const requiresSelection = isInternalRole && availableCompanies.length > 1 && !user.companyId;
+
+                if (requiresSelection) {
+                    setAvailableCompanies(availableCompanies);
                     setShowCompanySelection(true);
                 } else {
-                    // Redirect
                     window.location.href = redirectUrl;
                 }
             } else {
-                setError(data.error || 'Login failed');
+                window.location.href = redirectUrl;
             }
         } catch (err) {
             setError('An error occurred. Please try again.');

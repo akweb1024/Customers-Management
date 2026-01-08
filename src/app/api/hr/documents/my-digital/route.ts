@@ -1,27 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedUser } from '@/lib/auth';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
 
-export async function GET(req: NextRequest) {
-    try {
-        const user = await getAuthenticatedUser();
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export const GET = authorizedRoute(
+    [],
+    async (req: NextRequest, user) => {
+        try {
+            // Get Employee Profile
+            const employee = await prisma.employeeProfile.findFirst({
+                where: { userId: user.id }
+            });
 
-        // Get Employee Profile
-        const employee = await prisma.employeeProfile.findFirst({
-            where: { userId: user.id }
-        });
+            if (!employee) return createErrorResponse('Profile not found', 404);
 
-        if (!employee) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+            const docs = await prisma.digitalDocument.findMany({
+                where: { employeeId: employee.id },
+                orderBy: { createdAt: 'desc' }
+            });
 
-        const docs = await prisma.digitalDocument.findMany({
-            where: { employeeId: employee.id },
-            orderBy: { createdAt: 'desc' }
-        });
-
-        return NextResponse.json(docs);
-    } catch (error) {
-        console.error('Fetch My Digital Docs Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+            return NextResponse.json(docs);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
     }
-}
+);

@@ -1,66 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthenticatedUser, generateToken } from '@/lib/auth';
+import { generateToken } from '@/lib/auth-legacy';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
 
+export const POST = authorizedRoute(
+    [],
+    async (req: NextRequest, user) => {
+        try {
+            const body = await req.json();
+            const { companyId } = body;
 
-// Removed force-dynamic to let Next.js decide
-
-
-export async function POST(req: NextRequest) {
-    try {
-        const decoded = await getAuthenticatedUser();
-        if (!decoded) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const body = await req.json();
-        const { companyId } = body;
-
-        if (!companyId) {
-            return NextResponse.json({ error: 'Company ID is required' }, { status: 400 });
-        }
-
-        // Verify access
-        let hasAccess = false;
-        if (decoded.role === 'SUPER_ADMIN') {
-            const company = await prisma.company.findUnique({ where: { id: companyId } });
-            if (company) hasAccess = true;
-        } else {
-            const userWithCompanies = await prisma.user.findUnique({
-                where: { id: decoded.id },
-                include: { companies: { where: { id: companyId } } }
-            });
-            if (userWithCompanies?.companies.length || userWithCompanies?.companyId === companyId) {
-                hasAccess = true;
+            if (!companyId) {
+                return createErrorResponse('Company ID is required', 400);
             }
+
+            // Verify access
+            let hasAccess = false;
+            if (user.role === 'SUPER_ADMIN') {
+                const company = await prisma.company.findUnique({ where: { id: companyId } });
+                if (company) hasAccess = true;
+            } else {
+                const userWithCompanies = await prisma.user.findUnique({
+                    where: { id: user.id },
+                    include: { companies: { where: { id: companyId } } }
+                });
+                if (userWithCompanies?.companies.length || userWithCompanies?.companyId === companyId) {
+                    hasAccess = true;
+                }
+            }
+
+            if (!hasAccess) {
+                return createErrorResponse('Forbidden: No access to this company', 403);
+            }
+
+            // Update active company in User model (optional, but good for consistency)
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { companyId }
+            });
+
+            // Generate new token with updated companyId
+            const newToken = generateToken({
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                companyId: companyId
+            });
+
+            return NextResponse.json({
+                success: true,
+                token: newToken,
+                message: 'Company selected successfully'
+            });
+        } catch (error) {
+            return createErrorResponse(error);
         }
-
-        if (!hasAccess) {
-            return NextResponse.json({ error: 'Forbidden: No access to this company' }, { status: 403 });
-        }
-
-        // Update active company in User model (optional, but good for consistency)
-        await prisma.user.update({
-            where: { id: decoded.id },
-            data: { companyId }
-        });
-
-        // Generate new token with updated companyId
-        const newToken = generateToken({
-            id: decoded.id,
-            email: decoded.email,
-            role: decoded.role,
-            companyId: companyId
-        });
-
-        return NextResponse.json({
-            success: true,
-            token: newToken,
-            message: 'Company selected successfully'
-        });
-
-    } catch (error: any) {
-        console.error('Select Company Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-}
+);
