@@ -30,8 +30,12 @@ export default function DashboardPage() {
                 setTimeout(() => reject(new Error('Request timed out')), 10000)
             );
 
-            // Note: NextAuth cookies are sent automatically
-            const fetchPromise = fetch('/api/dashboard/stats');
+            // Note: NextAuth cookies are sent automatically, but we add legacy token if present
+            const token = localStorage.getItem('token');
+            const headers: any = {};
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
+            const fetchPromise = fetch('/api/dashboard/stats', { headers });
 
             const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
 
