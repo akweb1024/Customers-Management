@@ -10,12 +10,20 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        // Scope by Company (if not Super Admin)
+        const companyId = decoded.companyId;
+        const isSuper = decoded.role === 'SUPER_ADMIN';
+
+        const companyFilter = (!isSuper && companyId) ? { companyId } : {};
+        const subscriptionFilter = (!isSuper && companyId) ? { subscription: { companyId } } : {};
+
         // 2. Aggregate Data
 
         // Subscription Status Distribution
         const subscriptionsByStatus = await prisma.subscription.groupBy({
             by: ['status'],
-            _count: { id: true }
+            _count: { id: true },
+            where: companyFilter
         });
 
         // Revenue by month (last 6 months)
@@ -23,7 +31,10 @@ export async function GET(req: NextRequest) {
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
         const payments = await prisma.payment.findMany({
-            where: { paymentDate: { gte: sixMonthsAgo } },
+            where: {
+                paymentDate: { gte: sixMonthsAgo },
+                ...companyFilter
+            },
             select: { amount: true, paymentDate: true }
         });
 
@@ -37,7 +48,8 @@ export async function GET(req: NextRequest) {
         const journalStats = await prisma.subscriptionItem.groupBy({
             by: ['journalId'],
             _count: { id: true },
-            _sum: { price: true }
+            _sum: { price: true },
+            where: subscriptionFilter
         });
 
         const journals = await prisma.journal.findMany({
@@ -57,7 +69,8 @@ export async function GET(req: NextRequest) {
         // Sales Channel Split
         const channels = await prisma.subscription.groupBy({
             by: ['salesChannel'],
-            _count: { id: true }
+            _count: { id: true },
+            where: companyFilter
         });
 
         return NextResponse.json({

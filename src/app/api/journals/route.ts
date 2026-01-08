@@ -23,9 +23,9 @@ export async function GET(req: NextRequest) {
                 AND: [
                     search ? {
                         OR: [
-                            { name: { contains: search } },
-                            { issnPrint: { contains: search } },
-                            { issnOnline: { contains: search } }
+                            { name: { contains: search, mode: 'insensitive' } },
+                            { issnPrint: { contains: search, mode: 'insensitive' } },
+                            { issnOnline: { contains: search, mode: 'insensitive' } }
                         ]
                     } : {},
                     category ? { subjectCategory: { contains: category } } : {}
