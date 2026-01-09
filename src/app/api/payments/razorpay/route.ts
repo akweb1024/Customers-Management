@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
                     invoice: {
                         include: {
                             subscription: {
-                                include: { customerProfile: { select: { name: true } } }
+                                include: { customerProfile: { select: { name: true, primaryEmail: true } } }
                             }
                         }
                     }
@@ -61,6 +61,20 @@ export async function GET(req: NextRequest) {
                 metadata = {};
             }
 
+            // Try to extract name
+            const customerName = p.invoice?.subscription?.customerProfile?.name ||
+                metadata.notes?.name ||
+                metadata.notes?.customer_name ||
+                (metadata.card?.name && metadata.card.name !== 'Razorpay User' ? metadata.card.name : null) ||
+                '';
+
+            // Better description
+            const betterDescription = metadata.description ||
+                metadata.notes?.description ||
+                metadata.notes?.reason ||
+                p.notes ||
+                '';
+
             return {
                 id: p.razorpayPaymentId || p.id,
                 razorpayPaymentId: p.razorpayPaymentId,
@@ -70,9 +84,10 @@ export async function GET(req: NextRequest) {
                 currency: p.currency || 'INR',
                 status: p.status || 'unknown',
                 method: p.paymentMethod || metadata.method || 'unknown',
-                email: metadata.email || '',
+                name: customerName,
+                email: metadata.email || p.invoice?.subscription?.customerProfile?.primaryEmail || '',
                 contact: metadata.contact || '',
-                description: metadata.description || p.notes || '',
+                description: betterDescription,
                 international: metadata.international || false,
                 created_at: Math.floor(new Date(p.paymentDate).getTime() / 1000),
                 captured: p.status === 'captured',

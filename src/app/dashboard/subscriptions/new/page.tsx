@@ -231,7 +231,7 @@ export default function NewSubscriptionPage() {
                                 );
                             }).length === 0 && (
                                     <div className="text-center py-10 text-secondary-400 italic">
-                                        No customers found matching "{customerSearch}"
+                                        No customers found matching &quot;{customerSearch}&quot;
                                     </div>
                                 )}
                         </div>

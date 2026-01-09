@@ -64,6 +64,8 @@ model Company {
   itTickets          ITSupportTicket[]
   institutions       Institution[]
   designations       Designation[]
+  financialRecords   FinancialRecord[]
+  salaryAdvances     SalaryAdvance[]
 
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -140,6 +142,7 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  financeCreated FinancialRecord[] @relation("FinanceCreator")
 
   // Relations
   customerProfile       CustomerProfile?
@@ -1037,11 +1040,58 @@ model EmployeeProfile {
   hrComments        EmployeeComment[]
 
   // Leave Management
+  leaveBalance          Float @default(0) // Available paid leaves
   manualLeaveAdjustment Float @default(0) // Correction factor for leave balance
 
+  salaryAdvances SalaryAdvance[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model SalaryAdvance {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  amount      Float
+  reason      String?
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED, COMPLETED
+  
+  totalEmis   Int      @default(1)
+  paidEmis    Int      @default(0)
+  emiAmount   Float
+  
+  startDate   DateTime @default(now())
+  
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+
+  emis        AdvanceEMI[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([companyId])
+}
+
+model AdvanceEMI {
+  id              String   @id @default(uuid())
+  advanceId       String
+  advance         SalaryAdvance @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+  
+  salarySlipId    String?  @unique
+  salarySlip      SalarySlip? @relation(fields: [salarySlipId], references: [id])
+  
+  amount          Float
+  month           Int
+  year            Int
+  status          String   @default("PENDING") // PENDING, PAID
+  
+  paidAt          DateTime?
+
+  createdAt       DateTime @default(now())
 }
 
 model SalaryIncrementRecord {
@@ -1212,6 +1262,11 @@ model SalarySlip {
 
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
+
+  advanceDeduction Float @default(0)
+  lwpDeduction     Float @default(0) // Leave Without Pay deduction
+  
+  advanceEmi       AdvanceEMI?
 
   @@index([companyId])
 }
@@ -1920,4 +1975,36 @@ model ITSupportTicket {
   @@index([companyId])
   @@index([requesterId])
   @@index([status])
+}
+
+model FinancialRecord {
+  id          String   @id @default(uuid())
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  
+  type        FinancialType @default(EXPENSE)
+  category    String        // SALARY, RENT, BILLS, SUBSCRIPTION, SALE, OTHER
+  amount      Float
+  currency    String        @default("INR")
+  date        DateTime      @default(now())
+  description String?
+  status      String        @default("COMPLETED") // PENDING, COMPLETED, CANCELLED
+  paymentMethod String?     // CASH, BANK_TRANSFER, CARD, UPI
+  referenceId   String?     // Link to invoiceId, etc.
+  
+  createdByUserId String?
+  createdByUser   User?    @relation("FinanceCreator", fields: [createdByUserId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([type])
+  @@index([category])
+  @@index([date])
+}
+
+enum FinancialType {
+  REVENUE
+  EXPENSE
 }

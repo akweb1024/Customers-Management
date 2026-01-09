@@ -33,7 +33,8 @@ export async function GET(req: Request) {
             });
         }
 
-        const from = lastSync ? Math.floor(lastSync.lastSyncAt.getTime() / 1000) : undefined;
+        // Use 10-minute overlap to catch any late-processing payments
+        const from = lastSync ? Math.floor(lastSync.lastSyncAt.getTime() / 1000) - 600 : undefined;
 
         console.log(`Starting Razorpay sync from: ${from || 'beginning'}`);
 

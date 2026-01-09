@@ -250,6 +250,31 @@ export const useHolidayMutations = () => {
     return { create, update, remove };
 };
 
+export const useLeaveMonitor = (month: number, year: number) => {
+    return useQuery<any[]>({
+        queryKey: ['leave-monitor', { month, year }],
+        queryFn: () => fetchJson(`/api/hr/leave-monitoring?month=${month}&year=${year}`),
+    });
+};
+
+export const useAdvances = (employeeId?: string) => {
+    return useQuery<any[]>({
+        queryKey: ['advances', employeeId],
+        queryFn: () => fetchJson(`/api/hr/advances${employeeId ? `?employeeId=${employeeId}` : ''}`),
+    });
+};
+
+export const useAdvanceMutations = () => {
+    const queryClient = useQueryClient();
+    const create = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/advances', 'POST', data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['advances'] });
+        },
+    });
+    return { create };
+};
+
 export const useWorkReportMutations = () => {
     const queryClient = useQueryClient();
 

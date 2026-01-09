@@ -142,6 +142,9 @@ export default function UsersPage() {
         const payload: any = {
             role: formData.get('role'),
         };
+        if (userRole === 'SUPER_ADMIN') {
+            payload.email = formData.get('email');
+        }
         const password = formData.get('password');
         if (password) payload.password = password;
 
@@ -492,8 +495,15 @@ export default function UsersPage() {
                         <h2 className="text-2xl font-bold text-secondary-900 mb-6 font-primary">Edit User</h2>
                         <form onSubmit={handleUpdateUser} className="space-y-4">
                             <div>
-                                <label className="label">Work Email (Read Only)</label>
-                                <input type="email" className="input bg-secondary-100" value={editingUser.email} disabled />
+                                <label className="label">Work Email {userRole !== 'SUPER_ADMIN' && '(Read Only)'}</label>
+                                <input
+                                    name="email"
+                                    type="email"
+                                    className={`input ${userRole !== 'SUPER_ADMIN' ? 'bg-secondary-100' : ''}`}
+                                    defaultValue={editingUser.email}
+                                    readOnly={userRole !== 'SUPER_ADMIN'}
+                                    required={userRole === 'SUPER_ADMIN'}
+                                />
                             </div>
                             <div>
                                 <label className="label">New Password (Optional)</label>

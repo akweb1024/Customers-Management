@@ -120,7 +120,7 @@ export default function CustomerAssignmentManager({
                     <div className="text-center py-8 bg-secondary-50 rounded-xl border border-dashed border-secondary-200">
                         <Users className="mx-auto text-secondary-300 mb-2" size={32} />
                         <p className="text-sm text-secondary-500 font-bold">No employees assigned</p>
-                        <p className="text-xs text-secondary-400 mt-1">Click "Assign" to add employees</p>
+                        <p className="text-xs text-secondary-400 mt-1">Click &quot;Assign&quot; to add employees</p>
                     </div>
                 ) : (
                     <div className="space-y-2">

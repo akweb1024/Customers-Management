@@ -9,6 +9,8 @@ import {
     Calendar, FileText, Award, TrendingUp, Clock,
     Shield, ArrowLeft, Edit, Save, Plus, Trash2
 } from 'lucide-react';
+import RichTextEditor from '@/components/common/RichTextEditor';
+import SafeHTML from '@/components/common/SafeHTML';
 
 export default function EmployeeProfilePage() {
     const params = useParams();
@@ -370,11 +372,11 @@ export default function EmployeeProfilePage() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                         <div>
                                             <h4 className="text-xs font-bold text-secondary-400 uppercase mb-2">Job Description</h4>
-                                            <p className="text-sm text-secondary-600 whitespace-pre-line">{employee.jobDescription || 'Not detailed.'}</p>
+                                            <SafeHTML html={employee.jobDescription || 'Not detailed.'} />
                                         </div>
                                         <div>
                                             <h4 className="text-xs font-bold text-secondary-400 uppercase mb-2">Key Responsibility Areas</h4>
-                                            <p className="text-sm text-secondary-600 whitespace-pre-line">{employee.kra || 'Not detailed.'}</p>
+                                            <SafeHTML html={employee.kra || 'Not detailed.'} />
                                         </div>
                                     </div>
                                 </div>
@@ -838,22 +840,18 @@ export default function EmployeeProfilePage() {
                                         </div>
                                         <div className="col-span-2">
                                             <label className="label-premium text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-2 block">Key Responsibility Areas (KRA)</label>
-                                            <textarea
-                                                rows={3}
-                                                className="input-premium"
-                                                placeholder="Enter KRA points (one per line)..."
+                                            <RichTextEditor
                                                 value={empForm.kra}
-                                                onChange={e => setEmpForm({ ...empForm, kra: e.target.value })}
+                                                onChange={val => setEmpForm({ ...empForm, kra: val })}
+                                                placeholder="Enter KRA points..."
                                             />
                                         </div>
                                         <div className="col-span-2">
                                             <label className="label-premium text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-2 block">Job Description (Detailed)</label>
-                                            <textarea
-                                                rows={4}
-                                                className="input-premium"
-                                                placeholder="Detailed job description..."
+                                            <RichTextEditor
                                                 value={empForm.jobDescription}
-                                                onChange={e => setEmpForm({ ...empForm, jobDescription: e.target.value })}
+                                                onChange={val => setEmpForm({ ...empForm, jobDescription: val })}
+                                                placeholder="Detailed job description..."
                                             />
                                         </div>
                                         <div className="col-span-2 grid grid-cols-2 gap-4 border-t border-secondary-50 pt-6">

@@ -261,7 +261,7 @@ export default function StaffPortalPage() {
                                 You must complete your onboarding tasks to access all portal features.
                             </p>
                             <ul className="list-disc pl-5 mt-2 text-xs text-red-700 font-medium">
-                                {compliance.pendingDocuments.length > 0 && <li>Sign {compliance.pendingDocuments.length} pending document(s) in "Documents" tab.</li>}
+                                {compliance.pendingDocuments.length > 0 && <li>Sign {compliance.pendingDocuments.length} pending document(s) in &quot;Documents&quot; tab.</li>}
                                 {compliance.pendingModules.length > 0 && <li>Complete {compliance.pendingModules.length} mandatory onboarding module(s).</li>}
                             </ul>
                         </div>

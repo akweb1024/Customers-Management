@@ -1,0 +1,86 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { authorizedRoute } from '@/lib/middleware-auth';
+import { createErrorResponse } from '@/lib/api-utils';
+
+export const GET = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'FINANCE_ADMIN'],
+    async (req: NextRequest, user) => {
+        try {
+            const { searchParams } = new URL(req.url);
+            const employeeId = searchParams.get('employeeId');
+
+            const where: any = {
+                companyId: user.companyId || undefined
+            };
+            if (employeeId) where.employeeId = employeeId;
+
+            const advances = await prisma.salaryAdvance.findMany({
+                where,
+                include: {
+                    employee: {
+                        include: { user: { select: { name: true } } }
+                    },
+                    emis: true
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            return NextResponse.json(advances);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
+    }
+);
+
+export const POST = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'FINANCE_ADMIN'],
+    async (req: NextRequest, user) => {
+        try {
+            const { employeeId, amount, totalEmis, reason, startDate } = await req.json();
+
+            if (!employeeId || !amount || !totalEmis) {
+                return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+            }
+
+            const emiAmount = parseFloat(amount) / parseInt(totalEmis);
+
+            const advance = await prisma.salaryAdvance.create({
+                data: {
+                    employeeId,
+                    amount: parseFloat(amount),
+                    totalEmis: parseInt(totalEmis),
+                    emiAmount: parseFloat(emiAmount.toFixed(2)),
+                    reason,
+                    startDate: startDate ? new Date(startDate) : new Date(),
+                    companyId: user.companyId,
+                    status: 'APPROVED' // Auto-approved for admin actions
+                }
+            });
+
+            // Generate skeleton EMIs
+            const startStr = startDate ? new Date(startDate) : new Date();
+            const emis = [];
+            for (let i = 0; i < parseInt(totalEmis); i++) {
+                const emiDate = new Date(startStr);
+                emiDate.setMonth(emiDate.getMonth() + i);
+
+                emis.push({
+                    advanceId: advance.id,
+                    amount: parseFloat(emiAmount.toFixed(2)),
+                    month: emiDate.getMonth() + 1,
+                    year: emiDate.getFullYear(),
+                    status: 'PENDING'
+                });
+            }
+
+            await prisma.advanceEMI.createMany({
+                data: emis
+            });
+
+            return NextResponse.json(advance);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
+    }
+);

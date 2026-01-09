@@ -133,7 +133,7 @@ export const GET = authorizedRoute(
             // --- NEW MODULES ---
 
             // G. Dispatches
-            let dispatchWhere: any = { status: 'PENDING' };
+            const dispatchWhere: any = { status: 'PENDING' };
             if (userCompanyId) dispatchWhere.companyId = userCompanyId;
 
             if (customerProfileId) {

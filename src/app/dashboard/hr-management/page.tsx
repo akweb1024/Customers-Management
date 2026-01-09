@@ -21,7 +21,7 @@ import {
     useDeleteEmployee, useLeaveRequests, useSalarySlips, useAttendance,
     useWorkReports, useProductivity, useDocuments, useLeaveRequestMutations,
     useDocumentMutations, usePerformanceReviews, useHRInsights,
-    useBulkSalaryMutation
+    useBulkSalaryMutation, useLeaveMonitor, useAdvances, useAdvanceMutations
 } from '@/hooks/useHR';
 
 const FormattedTime = ({ date }: { date: string | Date | null }) => {
@@ -65,6 +65,8 @@ const HRManagementContent = () => {
     const { data: empDocuments = [] } = useDocuments(selectedDocEmp?.id);
     const { data: allReviews = [] } = usePerformanceReviews();
     const { data: hrInsights } = useHRInsights(activeTab === 'analytics');
+    const { data: leaveLedger = [] } = useLeaveMonitor(new Date().getMonth() + 1, new Date().getFullYear());
+    const { data: advances = [] } = useAdvances();
 
     // Mutations
     const createEmployeeMutation = useCreateEmployee();
@@ -78,6 +80,10 @@ const HRManagementContent = () => {
     const { updateStatus: updateLeaveStatus } = useLeaveRequestMutations();
     const { upload: uploadDoc, remove: removeDoc } = useDocumentMutations();
     const bulkSalaryMutation = useBulkSalaryMutation();
+    const { create: createAdvance } = useAdvanceMutations();
+
+    const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+    const [advanceForm, setAdvanceForm] = useState({ employeeId: '', amount: '', totalEmis: '1', reason: '', startDate: new Date().toISOString().split('T')[0] });
 
 
 
@@ -344,6 +350,12 @@ const HRManagementContent = () => {
                             Designation Master
                         </button>
                         <button
+                            onClick={() => setShowAdvanceModal(true)}
+                            className="btn btn-warning shadow-xl flex items-center gap-2"
+                        >
+                            <span>💰</span> New Advance
+                        </button>
+                        <button
                             onClick={() => {
                                 setSelectedEmp(null);
                                 setShowEmpModal(true);
@@ -376,7 +388,7 @@ const HRManagementContent = () => {
                 </div>
 
                 <div className="flex gap-2 bg-white p-2 rounded-2xl shadow-sm border border-secondary-100 w-fit overflow-x-auto max-w-full">
-                    {['employees', 'documents', 'recruitment', 'onboarding', 'map', 'reports', 'leaves', 'attendance', 'payroll', 'analytics', 'holidays', 'productivity'].map(tab => (
+                    {['employees', 'documents', 'recruitment', 'onboarding', 'map', 'reports', 'leaves', 'leave-ledger', 'attendance', 'payroll', 'advances', 'analytics', 'holidays', 'productivity'].map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -638,40 +650,42 @@ const HRManagementContent = () => {
                     </div>
                 )}
 
-                {activeTab === 'leaves' && (
+                {activeTab === 'leave-ledger' && (
                     <div className="card-premium overflow-hidden">
+                        <div className="p-6 border-b border-secondary-100 flex justify-between items-center">
+                            <h3 className="font-bold text-secondary-900">Monthly Leave Analysis & Deductions</h3>
+                            <span className="text-xs font-bold text-secondary-400 uppercase">Current Month: {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+                        </div>
                         <table className="table">
                             <thead>
                                 <tr className="text-[10px] uppercase font-black text-secondary-400">
-                                    <th className="pb-4">Employee</th>
-                                    <th className="pb-4">Type</th>
-                                    <th className="pb-4">Duration</th>
-                                    <th className="pb-4">Status</th>
-                                    <th className="pb-4 text-right">Actions</th>
+                                    <th className="pb-4">Name</th>
+                                    <th className="pb-4">Department</th>
+                                    <th className="pb-4">Available Bal</th>
+                                    <th className="pb-4">Leaves Taken</th>
+                                    <th className="pb-4">Overhead (LWP)</th>
+                                    <th className="pb-4 text-right">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-secondary-50">
-                                {leaves.map(leave => (
-                                    <tr key={leave.id} className="hover:bg-secondary-50/50">
+                                {leaveLedger.map(row => (
+                                    <tr key={row.id} className="hover:bg-secondary-50/50">
                                         <td className="py-4">
-                                            <p className="font-bold text-secondary-900">{leave.employee.user.email}</p>
+                                            <p className="font-bold text-secondary-900">{row.name}</p>
+                                            <p className="text-[10px] text-secondary-400">{row.designation}</p>
                                         </td>
-                                        <td className="py-4 font-bold text-secondary-600 text-xs uppercase">{leave.type}</td>
+                                        <td className="py-4 text-xs font-bold text-secondary-500 uppercase">{row.department}</td>
                                         <td className="py-4">
-                                            <p className="text-xs font-black text-secondary-900">
-                                                <FormattedDate date={leave.startDate} /> → <FormattedDate date={leave.endDate} />
-                                            </p>
+                                            <span className={`font-mono font-bold ${row.balLeave === 0 ? 'text-danger-500' : 'text-success-600'}`}>{row.balLeave} Days</span>
                                         </td>
+                                        <td className="py-4 font-mono font-bold text-secondary-700">{row.leaveTaken} Days</td>
                                         <td className="py-4">
-                                            <span className={`px-2 py-1 text-[10px] font-black rounded uppercase ${leave.status === 'APPROVED' ? 'bg-success-50 text-success-700' : leave.status === 'PENDING' ? 'bg-warning-50 text-warning-700' : 'bg-danger-50 text-danger-700'}`}>{leave.status}</span>
+                                            <span className={`px-2 py-1 rounded-lg font-black text-[10px] ${row.overheadLeave > 0 ? 'bg-danger-50 text-danger-700 border border-danger-100' : 'bg-secondary-50 text-secondary-400'}`}>
+                                                {row.overheadLeave > 0 ? `${row.overheadLeave} DAYS DEDUCT` : 'NONE'}
+                                            </span>
                                         </td>
                                         <td className="py-4 text-right">
-                                            {leave.status === 'PENDING' && (
-                                                <div className="flex justify-end gap-2">
-                                                    <button onClick={() => handleLeaveStatus(leave.id, 'APPROVED')} className="btn btn-success py-1 text-[10px]">Approve</button>
-                                                    <button onClick={() => handleLeaveStatus(leave.id, 'REJECTED')} className="btn btn-danger py-1 text-[10px]">Reject</button>
-                                                </div>
-                                            )}
+                                            <div className="w-2 h-2 rounded-full bg-success-500 inline-block" title="Synced with Payroll"></div>
                                         </td>
                                     </tr>
                                 ))}
@@ -726,45 +740,49 @@ const HRManagementContent = () => {
                         </div>
                     </div>
                 )}
-
                 {activeTab === 'payroll' && (
                     <div className="space-y-6">
-                        <div className="flex justify-between items-center bg-accent-50 p-6 rounded-3xl border border-accent-100">
-                            <div>
-                                <h3 className="text-xl font-black text-accent-900">Monthly Payroll Processing</h3>
-                                <p className="text-accent-700 font-medium text-sm">Actioning for {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
-                            </div>
-                            <button onClick={handleBulkPayroll} className="btn bg-accent-600 text-white hover:bg-accent-700 font-black shadow-xl px-8 py-4 rounded-2xl flex items-center gap-2">
-                                <span>⚡</span> Run Payroll Batch
-                            </button>
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-xl font-bold text-secondary-900">Payroll Records</h3>
+                            <button onClick={handleBulkPayroll} className="btn btn-primary shadow-lg">Run Bulk Payroll</button>
                         </div>
-
                         <div className="card-premium overflow-hidden">
                             <table className="table">
                                 <thead>
-                                    <tr className="text-[10px] uppercase font-black text-secondary-400 border-b border-secondary-50">
-                                        <th className="pb-4">Employee</th>
-                                        <th className="pb-4">Base Salary</th>
-                                        <th className="pb-4">Period</th>
-                                        <th className="pb-4">Status</th>
-                                        <th className="pb-4 text-right">Actions</th>
+                                    <tr className="text-[10px] uppercase font-black text-secondary-400">
+                                        <th className="p-4">Staff</th>
+                                        <th className="p-4">Period</th>
+                                        <th className="p-4">Base Payout</th>
+                                        <th className="p-4">Deductions</th>
+                                        <th className="p-4">Net Paid</th>
+                                        <th className="p-4">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-secondary-50">
-                                    {allSlips.filter(s => s.month === new Date().getMonth() + 1 && s.year === new Date().getFullYear()).length === 0 ? (
-                                        <tr><td colSpan={5} className="text-center py-10 text-secondary-400 font-bold italic">No slips generated for this month yet. Run the batch!</td></tr>
-                                    ) : allSlips.filter(s => s.month === new Date().getMonth() + 1 && s.year === new Date().getFullYear()).map(slip => (
-                                        <tr key={slip.id} className="hover:bg-secondary-50/50 transition-colors">
-                                            <td className="py-4">
-                                                <p className="font-bold text-secondary-900">{slip.employee?.user?.email || 'Unknown'}</p>
+                                    {allSlips.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="p-10 text-center text-secondary-400 italic font-bold">No payroll records generated yet.</td>
+                                        </tr>
+                                    ) : allSlips.map(slip => (
+                                        <tr key={slip.id} className="hover:bg-secondary-50 transition-colors text-sm">
+                                            <td className="p-4">
+                                                <p className="font-bold text-secondary-900">{slip.employee?.user?.email?.split('@')[0] || 'Unknown'}</p>
+                                                <p className="text-[10px] text-secondary-400 font-bold uppercase">{slip.employee?.designation}</p>
                                             </td>
-                                            <td className="py-4 font-black text-secondary-900">₹{slip.amountPaid.toLocaleString()}</td>
-                                            <td className="py-4 text-xs font-bold text-secondary-500 uppercase">{slip.month}/{slip.year}</td>
-                                            <td className="py-4">
-                                                <span className={`px-2 py-1 text-[10px] font-black rounded uppercase ${slip.status === 'PAID' ? 'bg-success-50 text-success-700' : 'bg-warning-50 text-warning-700'}`}>{slip.status}</span>
+                                            <td className="p-4 font-bold text-secondary-600">
+                                                {new Date(slip.year, slip.month - 1).toLocaleString('default', { month: 'short' })} {slip.year}
                                             </td>
-                                            <td className="py-4 text-right">
-                                                <button className="text-primary-600 font-bold text-[10px] uppercase hover:underline">View Slip</button>
+                                            <td className="p-4 font-black">₹{slip.amountPaid.toLocaleString()}</td>
+                                            <td className="p-4">
+                                                <div className="space-y-1">
+                                                    {slip.lwpDeduction > 0 && <p className="text-[10px] text-danger-600 font-bold uppercase">LWP: -₹{slip.lwpDeduction.toLocaleString()}</p>}
+                                                    {slip.advanceDeduction > 0 && <p className="text-[10px] text-warning-600 font-bold uppercase">ADV: -₹{slip.advanceDeduction.toLocaleString()}</p>}
+                                                    {slip.lwpDeduction <= 0 && slip.advanceDeduction <= 0 && <span className="text-secondary-300">--</span>}
+                                                </div>
+                                            </td>
+                                            <td className="p-4 font-black text-primary-600">₹{(slip.amountPaid - (slip.lwpDeduction || 0) - (slip.advanceDeduction || 0)).toLocaleString()}</td>
+                                            <td className="p-4">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${slip.status === 'PAID' ? 'bg-success-50 text-success-700' : 'bg-warning-50 text-warning-700'}`}>{slip.status}</span>
                                             </td>
                                         </tr>
                                     ))}
@@ -773,7 +791,48 @@ const HRManagementContent = () => {
                         </div>
                     </div>
                 )}
-
+                {activeTab === 'advances' && (
+                    <div className="card-premium overflow-hidden">
+                        <div className="p-6 border-b border-secondary-100">
+                            <h3 className="font-bold text-secondary-900">Salary Advances & Loan Tracking</h3>
+                        </div>
+                        <table className="table">
+                            <thead>
+                                <tr className="text-[10px] uppercase font-black text-secondary-400">
+                                    <th className="pb-4">Employee</th>
+                                    <th className="pb-4">Total Amount</th>
+                                    <th className="pb-4">EMI Amount</th>
+                                    <th className="pb-4">Repayment</th>
+                                    <th className="pb-4">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-secondary-50">
+                                {advances.map(adv => (
+                                    <tr key={adv.id} className="hover:bg-secondary-50/50">
+                                        <td className="py-4">
+                                            <p className="font-bold text-secondary-900">{adv.employee.user.name}</p>
+                                            <p className="text-[10px] text-secondary-400 italic">&quot;{adv.reason || 'No reason provided'}&quot;</p>
+                                        </td>
+                                        <td className="py-4 font-black text-secondary-900">₹{adv.amount.toLocaleString()}</td>
+                                        <td className="py-4 font-bold text-warning-600">₹{adv.emiAmount.toLocaleString()}</td>
+                                        <td className="py-4">
+                                            <div className="w-full bg-secondary-100 h-1.5 rounded-full overflow-hidden mb-1">
+                                                <div
+                                                    className="bg-primary-500 h-full transition-all"
+                                                    style={{ width: `${(adv.paidEmis / adv.totalEmis) * 100}%` }}
+                                                ></div>
+                                            </div>
+                                            <p className="text-[9px] font-bold text-secondary-500 uppercase">{adv.paidEmis} / {adv.totalEmis} EMIs PAID</p>
+                                        </td>
+                                        <td className="py-4">
+                                            <span className={`px-2 py-1 text-[10px] font-black rounded uppercase ${adv.status === 'COMPLETED' ? 'bg-success-50 text-success-700' : 'bg-warning-50 text-warning-700'}`}>{adv.status}</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
                 {activeTab === 'analytics' && (
                     <div className="space-y-8">
                         {/* AI Insights Section */}
@@ -785,7 +844,6 @@ const HRManagementContent = () => {
                                     <p className="text-xs text-indigo-100">Per employee / day (Last 30 days)</p>
                                 </div>
                                 <div className="card-premium bg-gradient-to-br from-pink-500 to-rose-600 text-white border-0">
-                                    <h4 className="text-white/80 font-bold uppercase text-[10px] tracking-widest mb-2">Retention Risk</h4>
                                     <h4 className="text-white/80 font-bold uppercase text-[10px] tracking-widest mb-2">Retention Risk</h4>
                                     <div className="text-4xl font-black mb-1">{hrInsights.metrics?.flightRiskCount || 0}</div>
                                     <p className="text-xs text-rose-100">Employees showing disengagement signs</p>
@@ -929,7 +987,6 @@ const HRManagementContent = () => {
                         </div>
                     </div>
                 )}
-
                 {activeTab === 'recruitment' && (
                     <RecruitmentBoard
                         jobs={jobs}
@@ -938,7 +995,6 @@ const HRManagementContent = () => {
                         onEditJob={handleEditJob}
                     />
                 )}
-
                 {activeTab === 'map' && (
                     <div className="space-y-6">
                         <div className="flex justify-between items-center">
@@ -1020,86 +1076,178 @@ const HRManagementContent = () => {
                 {/* Holiday Modal */}
                 {/* Holiday Modal Removed */}
 
-                {activeTab === 'productivity' && (
-                    <div className="space-y-6">
-                        <div className="flex justify-between items-end">
-                            <div>
-                                <h3 className="text-2xl font-black text-secondary-900 tracking-tighter uppercase">Productivity Intelligence</h3>
-                                <p className="text-secondary-500 font-medium">Comparative output analysis across staff.</p>
+                {
+                    activeTab === 'productivity' && (
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-end">
+                                <div>
+                                    <h3 className="text-2xl font-black text-secondary-900 tracking-tighter uppercase">Productivity Intelligence</h3>
+                                    <p className="text-secondary-500 font-medium">Comparative output analysis across staff.</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <input type="date" className="input text-xs" value={prodDateRange.startDate} onChange={e => setProdDateRange({ ...prodDateRange, startDate: e.target.value })} />
+                                    <input type="date" className="input text-xs" value={prodDateRange.endDate} onChange={e => setProdDateRange({ ...prodDateRange, endDate: e.target.value })} />
+                                </div>
                             </div>
-                            <div className="flex gap-2">
-                                <input type="date" className="input text-xs" value={prodDateRange.startDate} onChange={e => setProdDateRange({ ...prodDateRange, startDate: e.target.value })} />
-                                <input type="date" className="input text-xs" value={prodDateRange.endDate} onChange={e => setProdDateRange({ ...prodDateRange, endDate: e.target.value })} />
-                            </div>
-                        </div>
 
-                        {prodAnalysis && (
-                            <div className="card-premium p-0 overflow-hidden">
-                                <table className="table">
-                                    <thead>
-                                        <tr className="text-[10px] uppercase font-black text-secondary-400 border-b border-secondary-50">
-                                            <th className="p-4">Staff Member</th>
-                                            <th className="p-4">Output Score</th>
-                                            <th className="p-4">JD/KRA Match</th>
-                                            <th className="p-4">Efficiency (Idx)</th>
-                                            <th className="p-4 text-center">Workload Distribution</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-secondary-50">
-                                        {prodAnalysis.individualAnalysis.map((item: any) => (
-                                            <tr key={item.id} className="hover:bg-secondary-50 transition-colors">
-                                                <td className="p-4">
-                                                    <p className="font-bold text-secondary-900">{item.name}</p>
-                                                    <p className="text-[9px] text-secondary-400 font-bold uppercase">{item.role}</p>
-                                                </td>
-                                                <td className="p-4">
-                                                    <p className="text-xl font-black text-secondary-900">{item.score.toFixed(0)}</p>
-                                                </td>
-                                                <td className="p-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex-1 h-1.5 bg-secondary-100 rounded-full overflow-hidden w-24">
-                                                            <div
-                                                                className={`h-full rounded-full ${item.avgKRA > 0.7 ? 'bg-success-500' : item.avgKRA > 0.4 ? 'bg-warning-500' : 'bg-danger-500'}`}
-                                                                style={{ width: `${(item.avgKRA || 0) * 100}%` }}
-                                                            ></div>
-                                                        </div>
-                                                        <span className="text-[10px] font-black text-secondary-600">{(item.avgKRA * 100).toFixed(0)}%</span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4">
-                                                    <div className={`inline-block px-2 py-1 rounded-lg text-xs font-black ${item.productivityIndex > prodAnalysis.teamSummary.avgProductivity ? 'bg-success-100 text-success-700' : 'bg-secondary-100 text-secondary-600'}`}>
-                                                        {item.productivityIndex}
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    <div className="flex justify-center gap-2">
-                                                        <div className="text-center" title="Tasks">
-                                                            <span className="block text-[9px] text-secondary-400 font-bold uppercase">Tsk</span>
-                                                            <span className="block font-bold">{item.metrics.totalTasks}</span>
-                                                        </div>
-                                                        <div className="text-center" title="Tickets">
-                                                            <span className="block text-[9px] text-secondary-400 font-bold uppercase">Tkt</span>
-                                                            <span className="block font-bold">{item.metrics.totalTickets}</span>
-                                                        </div>
-                                                        <div className="text-center" title="Chats">
-                                                            <span className="block text-[9px] text-secondary-400 font-bold uppercase">Cht</span>
-                                                            <span className="block font-bold">{item.metrics.totalChats}</span>
-                                                        </div>
-                                                    </div>
-                                                </td>
+                            {prodAnalysis && (
+                                <div className="card-premium p-0 overflow-hidden">
+                                    <table className="table">
+                                        <thead>
+                                            <tr className="text-[10px] uppercase font-black text-secondary-400 border-b border-secondary-50">
+                                                <th className="p-4">Staff Member</th>
+                                                <th className="p-4">Output Score</th>
+                                                <th className="p-4">JD/KRA Match</th>
+                                                <th className="p-4">Efficiency (Idx)</th>
+                                                <th className="p-4 text-center">Workload Distribution</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                        <button onClick={() => window.open('/dashboard/hr-management/productivity', '_blank')} className="btn btn-secondary w-full py-4 font-black uppercase tracking-widest text-xs">Launch Full Analytical Suite ↗</button>
-                    </div>
-                )}
+                                        </thead>
+                                        <tbody className="divide-y divide-secondary-50">
+                                            {prodAnalysis.individualAnalysis.map((item: any) => (
+                                                <tr key={item.id} className="hover:bg-secondary-50 transition-colors">
+                                                    <td className="p-4">
+                                                        <p className="font-bold text-secondary-900">{item.name}</p>
+                                                        <p className="text-[9px] text-secondary-400 font-bold uppercase">{item.role}</p>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <p className="text-xl font-black text-secondary-900">{item.score.toFixed(0)}</p>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex-1 h-1.5 bg-secondary-100 rounded-full overflow-hidden w-24">
+                                                                <div
+                                                                    className={`h-full rounded-full ${item.avgKRA > 0.7 ? 'bg-success-500' : item.avgKRA > 0.4 ? 'bg-warning-500' : 'bg-danger-500'}`}
+                                                                    style={{ width: `${(item.avgKRA || 0) * 100}%` }}
+                                                                ></div>
+                                                            </div>
+                                                            <span className="text-[10px] font-black text-secondary-600">{(item.avgKRA * 100).toFixed(0)}%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className={`inline-block px-2 py-1 rounded-lg text-xs font-black ${item.productivityIndex > prodAnalysis.teamSummary.avgProductivity ? 'bg-success-100 text-success-700' : 'bg-secondary-100 text-secondary-600'}`}>
+                                                            {item.productivityIndex}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <div className="flex justify-center gap-2">
+                                                            <div className="text-center" title="Tasks">
+                                                                <span className="block text-[9px] text-secondary-400 font-bold uppercase">Tsk</span>
+                                                                <span className="block font-bold">{item.metrics.totalTasks}</span>
+                                                            </div>
+                                                            <div className="text-center" title="Tickets">
+                                                                <span className="block text-[9px] text-secondary-400 font-bold uppercase">Tkt</span>
+                                                                <span className="block font-bold">{item.metrics.totalTickets}</span>
+                                                            </div>
+                                                            <div className="text-center" title="Chats">
+                                                                <span className="block text-[9px] text-secondary-400 font-bold uppercase">Cht</span>
+                                                                <span className="block font-bold">{item.metrics.totalChats}</span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                            <button onClick={() => window.open('/dashboard/hr-management/productivity', '_blank')} className="btn btn-secondary w-full py-4 font-black uppercase tracking-widest text-xs">Launch Full Analytical Suite ↗</button>
+                        </div>
+                    )}
 
                 {activeTab === 'onboarding' && <OnboardingManager />}
 
-                {/* MODAL */}
+                {/* MODALS */}
+                {showAdvanceModal && (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-300">
+                            <div className="p-8 border-b border-secondary-100 flex justify-between items-center bg-warning-50">
+                                <h3 className="text-xl font-black text-secondary-900 uppercase tracking-tight">Request Salary Advance</h3>
+                                <button onClick={() => setShowAdvanceModal(false)} className="text-secondary-400 hover:text-secondary-600 transition-colors text-2xl">×</button>
+                            </div>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (!advanceForm.employeeId || !advanceForm.amount || !advanceForm.totalEmis) return alert("Please fill all fields");
+                                try {
+                                    await createAdvance.mutateAsync({
+                                        employeeId: advanceForm.employeeId,
+                                        amount: parseFloat(advanceForm.amount),
+                                        totalEmis: parseInt(advanceForm.totalEmis),
+                                        reason: advanceForm.reason,
+                                        startDate: new Date(advanceForm.startDate).toISOString()
+                                    });
+                                    setShowAdvanceModal(false);
+                                    setAdvanceForm({ employeeId: '', amount: '', totalEmis: '1', reason: '', startDate: new Date().toISOString().split('T')[0] });
+                                    alert("Advance request created successfully!");
+                                } catch (err: any) {
+                                    alert(err.message || "Failed to create advance");
+                                }
+                            }} className="p-8 space-y-6">
+                                <div>
+                                    <label className="label">Employee</label>
+                                    <select
+                                        className="input"
+                                        required
+                                        value={advanceForm.employeeId}
+                                        onChange={e => setAdvanceForm({ ...advanceForm, employeeId: e.target.value })}
+                                    >
+                                        <option value="">Select Employee</option>
+                                        {employees.map(e => <option key={e.id} value={e.id}>{e.user?.email}</option>)}
+                                    </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="label">Amount (₹)</label>
+                                        <input
+                                            type="number"
+                                            className="input"
+                                            placeholder="Total advance"
+                                            required
+                                            value={advanceForm.amount}
+                                            onChange={e => setAdvanceForm({ ...advanceForm, amount: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="label">No. of EMIs</label>
+                                        <input
+                                            type="number"
+                                            className="input"
+                                            min="1"
+                                            required
+                                            value={advanceForm.totalEmis}
+                                            onChange={e => setAdvanceForm({ ...advanceForm, totalEmis: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                                {advanceForm.amount && advanceForm.totalEmis && (
+                                    <div className="p-4 bg-primary-50 rounded-2xl border border-primary-100">
+                                        <p className="text-[10px] font-black text-primary-600 uppercase mb-1">Estimated Monthly Deduction</p>
+                                        <p className="text-2xl font-black text-primary-900">₹{(parseFloat(advanceForm.amount) / parseInt(advanceForm.totalEmis)).toFixed(2)}</p>
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="label">Start Deduction From</label>
+                                    <input
+                                        type="date"
+                                        className="input"
+                                        required
+                                        value={advanceForm.startDate}
+                                        onChange={e => setAdvanceForm({ ...advanceForm, startDate: e.target.value })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="label">Reason / Notes</label>
+                                    <textarea
+                                        className="input min-h-[100px]"
+                                        placeholder="Why is this advance needed?"
+                                        value={advanceForm.reason}
+                                        onChange={e => setAdvanceForm({ ...advanceForm, reason: e.target.value })}
+                                    />
+                                </div>
+                                <button type="submit" className="btn btn-primary w-full py-4 shadow-xl">Confirm Advance Authorization</button>
+                            </form>
+                        </div>
+                    </div>
+                )}
                 <EmployeeModal
                     isOpen={showEmpModal}
                     onClose={() => {
@@ -1129,7 +1277,7 @@ const HRManagementContent = () => {
                     job={selectedJob}
                     onSave={handleJobSubmit}
                 />
-            </div >
+            </div>
 
         </DashboardLayout >
     );

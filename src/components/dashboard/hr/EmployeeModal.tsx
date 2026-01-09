@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import RichTextEditor from '@/components/common/RichTextEditor';
 
 interface EmployeeModalProps {
     isOpen: boolean;
@@ -282,11 +283,19 @@ export default function EmployeeModal({ isOpen, onClose, employee, designations,
                     </div>
                     <div className="col-span-2">
                         <label className="label-premium text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-2 block">KRA</label>
-                        <textarea rows={3} className="input-premium" placeholder="KRA points" value={empForm.kra} onChange={e => setEmpForm({ ...empForm, kra: e.target.value })} />
+                        <RichTextEditor
+                            value={empForm.kra}
+                            onChange={val => setEmpForm({ ...empForm, kra: val })}
+                            placeholder="KRA points..."
+                        />
                     </div>
                     <div className="col-span-2">
                         <label className="label-premium text-[10px] uppercase tracking-widest text-primary-600 font-bold mb-2 block">Job Description</label>
-                        <textarea rows={4} className="input-premium" placeholder="Detailed JD..." value={empForm.jobDescription} onChange={e => setEmpForm({ ...empForm, jobDescription: e.target.value })} />
+                        <RichTextEditor
+                            value={empForm.jobDescription}
+                            onChange={val => setEmpForm({ ...empForm, jobDescription: val })}
+                            placeholder="Detailed JD..."
+                        />
                     </div>
                     <div className="col-span-2 grid grid-cols-2 gap-4 border-t border-secondary-50 pt-6">
                         <div>

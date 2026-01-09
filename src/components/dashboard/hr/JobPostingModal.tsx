@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import RichTextEditor from '@/components/common/RichTextEditor';
 
 interface JobPostingModalProps {
     isOpen: boolean;
@@ -57,14 +58,27 @@ export default function JobPostingModal({ isOpen, onClose, job, onSave }: JobPos
                         <label className="label-premium">Job Title</label>
                         <input type="text" required className="input-premium" value={jobForm.title} onChange={e => setJobForm({ ...jobForm, title: e.target.value })} />
                     </div>
-                    <div className="col-span-2">
+                    <div className="col-span-2 text-editor-fix">
                         <label className="label-premium">Description</label>
-                        <textarea required rows={4} className="input-premium" value={jobForm.description} onChange={e => setJobForm({ ...jobForm, description: e.target.value })} />
+                        <RichTextEditor
+                            value={jobForm.description}
+                            onChange={val => setJobForm({ ...jobForm, description: val })}
+                            placeholder="Detailed job description..."
+                        />
                     </div>
-                    <div className="col-span-2">
+                    <div className="col-span-2 text-editor-fix">
                         <label className="label-premium">Requirements</label>
-                        <textarea rows={3} className="input-premium" value={jobForm.requirements} onChange={e => setJobForm({ ...jobForm, requirements: e.target.value })} />
+                        <RichTextEditor
+                            value={jobForm.requirements}
+                            onChange={val => setJobForm({ ...jobForm, requirements: val })}
+                            placeholder="Skills, background etc..."
+                        />
                     </div>
+                    <style jsx>{`
+                        .text-editor-fix :global(.ql-editor) {
+                            min-height: 120px;
+                        }
+                    `}</style>
                     <div>
                         <label className="label-premium">Location</label>
                         <input type="text" className="input-premium" value={jobForm.location} onChange={e => setJobForm({ ...jobForm, location: e.target.value })} />

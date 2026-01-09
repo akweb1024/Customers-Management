@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Plus, Edit2, Trash2, Search, Briefcase, Target, Info, AlertCircle } from 'lucide-react';
+import RichTextEditor from '@/components/common/RichTextEditor';
+import SafeHTML from '@/components/common/SafeHTML';
 
 export default function DesignationsPage() {
     const [designations, setDesignations] = useState<any[]>([]);
@@ -202,12 +204,17 @@ export default function DesignationsPage() {
 
                                 <div className="space-y-3">
                                     <div className="flex items-start gap-3">
-                                        <Info size={16} className="mt-1 text-secondary-400" />
-                                        <p className="text-sm text-secondary-600 line-clamp-2">{des.jobDescription || 'No description provided'}</p>
+                                        <Info size={16} className="mt-1 text-secondary-400 shrink-0" />
+                                        <div className="text-sm text-secondary-600 line-clamp-2 overflow-hidden">
+                                            <SafeHTML html={des.jobDescription || 'No description provided'} />
+                                        </div>
                                     </div>
                                     <div className="flex items-start gap-3">
-                                        <Target size={16} className="mt-1 text-primary-400" />
-                                        <p className="text-sm text-secondary-600 line-clamp-2">KRA: {des.kra || 'No KRAs defined'}</p>
+                                        <Target size={16} className="mt-1 text-primary-400 shrink-0" />
+                                        <div className="text-sm text-secondary-600 line-clamp-2 overflow-hidden">
+                                            <span className="font-bold mr-1">KRA:</span>
+                                            <SafeHTML html={des.kra || 'No KRAs defined'} className="inline" />
+                                        </div>
                                     </div>
                                 </div>
 
@@ -253,12 +260,20 @@ export default function DesignationsPage() {
 
                             <div>
                                 <label className="label">Job Description</label>
-                                <textarea rows={4} className="input" value={formData.jobDescription} onChange={e => setFormData({ ...formData, jobDescription: e.target.value })} placeholder="What does this role entail?" />
+                                <RichTextEditor
+                                    value={formData.jobDescription}
+                                    onChange={val => setFormData({ ...formData, jobDescription: val })}
+                                    placeholder="What does this role entail? (Headings, Bullets, Bold supported)"
+                                />
                             </div>
 
                             <div>
                                 <label className="label">Key Responsibility Areas (KRAs)</label>
-                                <textarea rows={3} className="input" value={formData.kra} onChange={e => setFormData({ ...formData, kra: e.target.value })} placeholder="List primary goals and KPIs..." />
+                                <RichTextEditor
+                                    value={formData.kra}
+                                    onChange={val => setFormData({ ...formData, kra: val })}
+                                    placeholder="List primary goals and KPIs..."
+                                />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -270,7 +285,11 @@ export default function DesignationsPage() {
 
                             <div>
                                 <label className="label">Increment Guidelines</label>
-                                <textarea rows={2} className="input" value={formData.incrementGuidelines} onChange={e => setFormData({ ...formData, incrementGuidelines: e.target.value })} placeholder="Standard yearly percentage, performance multipliers etc." />
+                                <RichTextEditor
+                                    value={formData.incrementGuidelines}
+                                    onChange={val => setFormData({ ...formData, incrementGuidelines: val })}
+                                    placeholder="Standard yearly percentage, performance multipliers etc."
+                                />
                             </div>
 
                             <div className="flex gap-4 pt-4">

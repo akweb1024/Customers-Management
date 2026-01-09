@@ -112,7 +112,7 @@ export const POST = authorizedRoute(
             const hashedPassword = await bcrypt.hash(password, 10);
 
             // Determine company context
-            let targetCompanyId = companyId || user.companyId;
+            const targetCompanyId = companyId || user.companyId;
 
             const newUser = await prisma.user.create({
                 data: {

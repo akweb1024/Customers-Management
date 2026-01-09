@@ -51,7 +51,7 @@ export const PATCH = authorizedRoute(
         try {
             const { id } = await params;
             const body = await req.json();
-            const { role, isActive, password, companyId, companyIds } = body;
+            const { role, isActive, password, companyId, companyIds, email } = body;
 
             const existingUser = await prisma.user.findUnique({ where: { id } });
             if (!existingUser) return createErrorResponse('User not found', 404);
@@ -69,6 +69,7 @@ export const PATCH = authorizedRoute(
             const updateData: any = {};
             if (role) updateData.role = role;
             if (isActive !== undefined) updateData.isActive = isActive;
+            if (email && user.role === 'SUPER_ADMIN') updateData.email = email;
             if (password) {
                 updateData.password = await bcrypt.hash(password, 10);
             }
@@ -98,6 +99,9 @@ export const PATCH = authorizedRoute(
             return NextResponse.json(safeUser);
         } catch (error: any) {
             console.error('Update User Error:', error);
+            if (error.code === 'P2002') {
+                return createErrorResponse('Email already in use', 400);
+            }
             return createErrorResponse('Internal Server Error', 500);
         }
     }

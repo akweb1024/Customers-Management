@@ -164,7 +164,7 @@ export default function RoleGuide({ role }: { role: string }) {
                 <div>
                     <h4 className="font-bold text-primary-900">Need specific help?</h4>
                     <p className="text-sm text-primary-700 mt-1">
-                        If you need functionality that isn't described here, please contact the System Administrator or raise a Support Ticket.
+                        If you need functionality that isn&apos;t described here, please contact the System Administrator or raise a Support Ticket.
                     </p>
                 </div>
             </div>

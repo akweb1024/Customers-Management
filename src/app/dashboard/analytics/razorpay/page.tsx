@@ -308,8 +308,11 @@ export default function RazorpayTrackerPage() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="font-bold text-secondary-900">{payment.email || 'N/A'}</div>
-                                            <div className="text-xs text-secondary-500">{payment.contact || '-'}</div>
+                                            <div className="font-bold text-secondary-900 truncate max-w-[150px]" title={payment.name}>
+                                                {payment.name || 'Unknown'}
+                                            </div>
+                                            <div className="text-xs text-secondary-500 truncate max-w-[150px]">{payment.email || 'N/A'}</div>
+                                            <div className="text-[10px] text-secondary-400">{payment.contact || '-'}</div>
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="text-xs font-bold text-secondary-700">
@@ -328,7 +331,7 @@ export default function RazorpayTrackerPage() {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="font-mono font-bold text-secondary-900">
-                                                {payment.currency} {formatCurrency(payment.amount, payment.currency)}
+                                                {formatCurrency(payment.amount, payment.currency)}
                                             </div>
                                             {payment.currency !== 'INR' && (
                                                 <div className="text-[10px] text-secondary-500 mt-1">
@@ -393,7 +396,7 @@ export default function RazorpayTrackerPage() {
                                 </div>
                                 <div>
                                     <div className="text-xs font-black text-secondary-400 uppercase mb-1">Amount</div>
-                                    <div className="font-bold">{selectedPayment.currency} {formatCurrency(selectedPayment.amount, selectedPayment.currency)}</div>
+                                    <div className="font-bold">{formatCurrency(selectedPayment.amount, selectedPayment.currency)}</div>
                                 </div>
                                 <div>
                                     <div className="text-xs font-black text-secondary-400 uppercase mb-1">Method</div>

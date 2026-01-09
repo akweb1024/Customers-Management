@@ -56,7 +56,7 @@ export default function DocumentManager({ employees }: { employees: any[] }) {
 
         const token = localStorage.getItem('token');
         let endpoint = '/api/hr/documents/issue';
-        let body: any = { templateId: selectedTemplate };
+        const body: any = { templateId: selectedTemplate };
 
         if (mode === 'SINGLE') {
             body.employeeId = selectedEmployee;
