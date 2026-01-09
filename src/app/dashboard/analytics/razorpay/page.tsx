@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    BarChart, Bar, PieChart, Pie, Cell
+    PieChart, Pie, Cell
 } from 'recharts';
-import { CreditCard, Wallet, Globe, TrendingUp, DollarSign, Filter, Download, RefreshCw } from 'lucide-react';
+import { Globe, TrendingUp, DollarSign, Download, RefreshCw } from 'lucide-react';
 
 export default function RazorpayTrackerPage() {
     const [data, setData] = useState<any>(null);
@@ -95,15 +95,7 @@ export default function RazorpayTrackerPage() {
         return true;
     }) || [];
 
-    const getPaymentIcon = (method: string) => {
-        switch (method) {
-            case 'card': return <CreditCard size={16} className="text-blue-500" />;
-            case 'wallet': return <Wallet size={16} className="text-purple-500" />;
-            case 'upi': return <span className="text-green-500 font-bold text-xs">UPI</span>;
-            case 'netbanking': return <span className="text-orange-500 font-bold text-xs">NET</span>;
-            default: return <DollarSign size={16} className="text-gray-500" />;
-        }
-    };
+
 
     return (
         <DashboardLayout userRole={userRole}>
