@@ -653,34 +653,133 @@ export default function StaffPortalPage() {
                     )}
 
                     {activeTab === 'performance' && (
-                        <div className="space-y-6 max-w-4xl mx-auto">
-                            {performance.map(review => (
-                                <div key={review.id} className="card-premium p-8 border-l-8 border-primary-500 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-4">
-                                        <div className="text-2xl font-black text-secondary-100 uppercase tracking-tighter opacity-10 select-none">Review</div>
-                                    </div>
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div>
-                                            <div className="flex gap-1 text-warning-400 text-xl mb-1">
-                                                {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                        <div className="space-y-8 max-w-6xl mx-auto">
+                            {/* Performance Targets Dashboard */}
+                            {fullProfile?.metrics && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {(fullProfile.metrics as any).revenueTarget && (
+                                        <div className="card-premium p-6 border-t-4 border-indigo-500 relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                                <div className="text-4xl font-black text-indigo-900">₹</div>
                                             </div>
-                                            <p className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Reviewed on <FormattedDate date={review.date} /></p>
+                                            <h3 className="text-sm font-bold text-secondary-500 uppercase tracking-widest mb-4">Revenue Goal</h3>
+
+                                            <div className="flex justify-between items-end mb-2">
+                                                <div>
+                                                    <span className="text-3xl font-black text-secondary-900">
+                                                        {((workReports.reduce((acc, r) => acc + (new Date(r.date).getMonth() === new Date().getMonth() ? (r.revenueGenerated || 0) : 0), 0) / parseFloat((fullProfile.metrics as any).revenueTarget || 1)) * 100).toFixed(0)}%
+                                                    </span>
+                                                    <span className="text-xs font-bold text-secondary-400 ml-1">Achieved</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-xs font-bold text-secondary-400 uppercase">Target</p>
+                                                    <p className="font-bold text-indigo-600">₹{parseFloat((fullProfile.metrics as any).revenueTarget).toLocaleString()}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="w-full bg-secondary-100 rounded-full h-2 mb-4 overflow-hidden">
+                                                <div
+                                                    className="bg-indigo-600 h-2 rounded-full transition-all duration-1000 ease-out"
+                                                    style={{ width: `${Math.min(100, (workReports.reduce((acc, r) => acc + (new Date(r.date).getMonth() === new Date().getMonth() ? (r.revenueGenerated || 0) : 0), 0) / parseFloat((fullProfile.metrics as any).revenueTarget || 1)) * 100)}%` }}
+                                                ></div>
+                                            </div>
+
+                                            <p className="text-xs text-secondary-500 font-medium">
+                                                Current: <span className="text-secondary-900 font-bold">₹{workReports.reduce((acc, r) => acc + (new Date(r.date).getMonth() === new Date().getMonth() ? (r.revenueGenerated || 0) : 0), 0).toLocaleString()}</span>
+                                            </p>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-sm font-bold text-secondary-900">{review.reviewer.email}</p>
-                                            <p className="text-[10px] text-secondary-400 font-bold uppercase">{review.reviewer.role.replace('_', ' ')}</p>
+                                    )}
+
+                                    {(fullProfile.metrics as any).publicationTarget && (
+                                        <div className="card-premium p-6 border-t-4 border-purple-500 relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                                <div className="text-4xl font-black text-purple-900">📄</div>
+                                            </div>
+                                            <h3 className="text-sm font-bold text-secondary-500 uppercase tracking-widest mb-4">Paper Success</h3>
+
+                                            <div className="flex justify-between items-end mb-2">
+                                                <div>
+                                                    <span className="text-3xl font-black text-secondary-900">
+                                                        {workReports.reduce((acc, r) => acc + (new Date(r.date).getMonth() === new Date().getMonth() && (r.category === 'PUBLICATION' || r.keyOutcome?.includes('Accepted')) ? 1 : 0), 0)}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-secondary-400 ml-1">/ {(fullProfile.metrics as any).publicationTarget}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="w-full bg-secondary-100 rounded-full h-2 mb-4 overflow-hidden">
+                                                <div
+                                                    className="bg-purple-600 h-2 rounded-full transition-all duration-1000 ease-out"
+                                                    style={{ width: `${Math.min(100, (workReports.reduce((acc, r) => acc + (new Date(r.date).getMonth() === new Date().getMonth() && (r.category === 'PUBLICATION' || r.keyOutcome?.includes('Accepted')) ? 1 : 0), 0) / parseFloat((fullProfile.metrics as any).publicationTarget || 1)) * 100)}%` }}
+                                                ></div>
+                                            </div>
+                                            <p className="text-xs text-secondary-500 font-medium">
+                                                Based on 'Publication' reports or 'Accepted' outcomes.
+                                            </p>
                                         </div>
-                                    </div>
-                                    <p className="text-lg text-secondary-700 leading-relaxed font-medium bg-primary-50/30 p-6 rounded-2xl border border-primary-100/50 italic">
-                                        &quot;{review.feedback}&quot;
-                                    </p>
-                                </div>
-                            ))}
-                            {performance.length === 0 && (
-                                <div className="card-premium p-20 text-center text-secondary-400 font-medium italic">
-                                    Detailed performance reviews will appear here once submitted by your manager.
+                                    )}
+
+                                    {(fullProfile.metrics as any).developmentTarget && (
+                                        <div className="card-premium p-6 border-t-4 border-emerald-500 relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                                <div className="text-4xl font-black text-emerald-900">🚀</div>
+                                            </div>
+                                            <h3 className="text-sm font-bold text-secondary-500 uppercase tracking-widest mb-4">Development Projects</h3>
+
+                                            <div className="flex justify-between items-end mb-2">
+                                                <div>
+                                                    <span className="text-3xl font-black text-secondary-900">
+                                                        {workReports.reduce((acc, r) => acc + (new Date(r.date).getMonth() === new Date().getMonth() && (r.category === 'DEVELOPMENT') ? 1 : 0), 0)}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-secondary-400 ml-1">/ {(fullProfile.metrics as any).developmentTarget}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="w-full bg-secondary-100 rounded-full h-2 mb-4 overflow-hidden">
+                                                <div
+                                                    className="bg-emerald-600 h-2 rounded-full transition-all duration-1000 ease-out"
+                                                    style={{ width: `${Math.min(100, (workReports.reduce((acc, r) => acc + (new Date(r.date).getMonth() === new Date().getMonth() && (r.category === 'DEVELOPMENT') ? 1 : 0), 0) / parseFloat((fullProfile.metrics as any).developmentTarget || 1)) * 100)}%` }}
+                                                ></div>
+                                            </div>
+                                            <p className="text-xs text-secondary-500 font-medium">
+                                                Projects delivered this month.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
+
+                            <h3 className="text-xl font-black text-secondary-900 flex items-center gap-2 border-b border-secondary-100 pb-4">
+                                <span className="text-2xl">⭐</span> Manager Reviews
+                            </h3>
+                            <div className="space-y-6">
+                                {performance.map(review => (
+                                    <div key={review.id} className="card-premium p-8 border-l-8 border-primary-500 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-4">
+                                            <div className="text-2xl font-black text-secondary-100 uppercase tracking-tighter opacity-10 select-none">Review</div>
+                                        </div>
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div>
+                                                <div className="flex gap-1 text-warning-400 text-xl mb-1">
+                                                    {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
+                                                </div>
+                                                <p className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Reviewed on <FormattedDate date={review.date} /></p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm font-bold text-secondary-900">{review.reviewer.email}</p>
+                                                <p className="text-[10px] text-secondary-400 font-bold uppercase">{review.reviewer.role.replace('_', ' ')}</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-lg text-secondary-700 leading-relaxed font-medium bg-primary-50/30 p-6 rounded-2xl border border-primary-100/50 italic">
+                                            &quot;{review.feedback}&quot;
+                                        </p>
+                                    </div>
+                                ))}
+                                {performance.length === 0 && (
+                                    <div className="card-premium p-20 text-center text-secondary-400 font-medium italic">
+                                        Detailed performance reviews will appear here once submitted by your manager.
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
