@@ -8,6 +8,7 @@ import WorkPlanSection from '@/components/dashboard/WorkPlanSection';
 import OnboardingPortal from '@/components/dashboard/OnboardingPortal';
 import DigitalWallet from '@/components/dashboard/DigitalWallet';
 import EmployeeIDCard from '@/components/dashboard/EmployeeIDCard';
+import SafeHTML from '@/components/common/SafeHTML';
 import { Lock, AlertOctagon } from 'lucide-react';
 
 export default function StaffPortalPage() {
@@ -295,9 +296,9 @@ export default function StaffPortalPage() {
                                                 {fullProfile.isActive ? 'Active Staff' : 'Inactive'}
                                             </span>
                                         </div>
-                                        <p className="text-secondary-500 font-medium max-w-lg mx-auto md:mx-0 pt-2">
-                                            {fullProfile.jobDescription || 'No professional summary available.'}
-                                        </p>
+                                        <div className="text-secondary-500 font-medium max-w-lg mx-auto md:mx-0 pt-2">
+                                            <SafeHTML html={fullProfile.jobDescription || 'No professional summary available.'} />
+                                        </div>
                                     </div>
                                 </div>
                             </div>

@@ -223,7 +223,7 @@ export default function EmployeeProfilePage() {
                             <h2 className="font-bold text-lg">{employee.user.email.split('@')[0]}</h2>
                             <p className="text-sm text-secondary-500 mb-4">{employee.department?.name || 'General Staff'}</p>
                             <div className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${employee.user.isActive ? 'bg-success-50 text-success-700' : 'bg-danger-50 text-danger-700'}`}>
-                                {employee.user.isActive ? 'Active Active' : 'Inactive'}
+                                {employee.user.isActive ? 'Active' : 'Inactive'}
                             </div>
                         </div>
 
@@ -323,7 +323,7 @@ export default function EmployeeProfilePage() {
                                         <Award className="text-warning-500" size={20} />
                                         Job Description & KRA
                                     </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="grid grid-cols-1 gap-8">
                                         <div>
                                             <h4 className="text-xs font-bold text-secondary-400 uppercase mb-2">Job Description</h4>
                                             <SafeHTML html={employee.jobDescription || 'Not detailed.'} />
