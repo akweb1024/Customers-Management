@@ -20,6 +20,7 @@
     },
     "dependencies": {
         "@aws-sdk/client-ses": "^3.965.0",
+        "@aws-sdk/client-sesv2": "^3.965.0",
         "@aws-sdk/credential-provider-node": "^3.965.0",
         "@prisma/adapter-pg": "^7.2.0",
         "@prisma/client": "^7.2.0",

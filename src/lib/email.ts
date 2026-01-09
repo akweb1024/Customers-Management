@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses';
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 
 interface EmailOptions {
     to: string;
@@ -8,24 +8,31 @@ interface EmailOptions {
     html: string;
 }
 
-const createTransporter = () => {
-    // 1. Try AWS SES if keys are present
+// Singleton transporter to avoid initialization issues during build
+let transporterInstance: nodemailer.Transporter | null = null;
+
+const getTransporter = () => {
+    if (transporterInstance) return transporterInstance;
+
+    // 1. Try AWS SES if keys are present (v3 with SESv2 client for Nodemailer 7+)
     if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
-        console.log('📧 configuring AWS SES transport...');
-        const ses = new SESClient({
+        console.log('📧 configuring AWS SES transport (v2 client)...');
+        const ses = new SESv2Client({
             region: process.env.AWS_REGION || 'us-east-1',
             credentials: {
                 accessKeyId: process.env.AWS_ACCESS_KEY_ID,
                 secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
             },
         });
-        return nodemailer.createTransport({
-            SES: { ses, aws: { SendRawEmailCommand } },
+        transporterInstance = nodemailer.createTransport({
+            SES: { ses, aws: { SendEmailCommand } },
         } as any);
+        return transporterInstance;
     }
 
     // 2. Fallback to Standard SMTP
-    return nodemailer.createTransport({
+    console.log('📧 configuring SMTP transport...');
+    transporterInstance = nodemailer.createTransport({
         host: process.env.EMAIL_HOST || 'smtp.ethereal.email',
         port: parseInt(process.env.EMAIL_PORT || '587'),
         secure: process.env.EMAIL_SECURE === 'true',
@@ -34,13 +41,12 @@ const createTransporter = () => {
             pass: process.env.EMAIL_PASS,
         },
     });
+    return transporterInstance;
 };
 
-const transporter = createTransporter();
-
 export async function sendEmail({ to, subject, text, html }: EmailOptions) {
-    const hasAws = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY;
-    const hasSmtp = process.env.EMAIL_USER && process.env.EMAIL_PASS;
+    const hasAws = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
+    const hasSmtp = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
 
     if (!hasAws && !hasSmtp) {
         console.log('-------------------------------------------');
@@ -53,6 +59,7 @@ export async function sendEmail({ to, subject, text, html }: EmailOptions) {
     }
 
     try {
+        const transporter = getTransporter();
         const info = await transporter.sendMail({
             from: `"STM Journals" <${process.env.EMAIL_FROM || 'no-reply@stm.com'}>`,
             to,
@@ -61,11 +68,11 @@ export async function sendEmail({ to, subject, text, html }: EmailOptions) {
             html,
         });
 
-        console.log('Message sent: %s', info.messageId);
+        console.log('📧 Email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
-    } catch (error) {
-        console.error('Email send error:', error);
-        return { success: false, error };
+    } catch (error: any) {
+        console.error('❌ Email sending failed:', error);
+        return { success: false, error: error.message };
     }
 }
 
