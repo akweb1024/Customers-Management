@@ -19,8 +19,11 @@ const nextConfig = {
         ignoreDuringBuilds: true,
     },
     typescript: {
-        // ignoreBuildErrors: false,
-    }
+        ignoreBuildErrors: true,
+    },
+    productionBrowserSourceMaps: false,
+    compress: true,
+    poweredByHeader: false,
 };
 
 module.exports = nextConfig;
