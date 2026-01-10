@@ -122,7 +122,7 @@ export const POST = authorizedRoute(
 );
 
 export const PATCH = authorizedRoute(
-    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEAM_LEADER'],
     async (req: NextRequest, user) => {
         try {
             const body = await req.json();
@@ -132,6 +132,21 @@ export const PATCH = authorizedRoute(
                 return createErrorResponse(result.error);
             }
             const { leaveId, status } = result.data;
+
+            const existing = await prisma.leaveRequest.findUnique({
+                where: { id: leaveId },
+                include: { employee: true }
+            });
+
+            if (!existing) return createErrorResponse('Leave request not found', 404);
+
+            // Access Control: Manager/TL can only approve/deny their own team
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                if (!subIds.includes(existing.employee.userId)) {
+                    return createErrorResponse('Forbidden: Not in your team', 403);
+                }
+            }
 
             const leave = await prisma.leaveRequest.update({
                 where: { id: leaveId },

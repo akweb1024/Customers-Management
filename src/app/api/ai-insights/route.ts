@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getAuthenticatedUser } from '@/lib/auth-legacy';
+import { getDownlineUserIds } from '@/lib/hierarchy';
 
 interface WorkReportAgg {
     hours: number;
@@ -53,21 +54,25 @@ export async function GET(req: NextRequest) {
             const growthParams = lastRevenue === 0 ? 100 : ((currentRevenue - lastRevenue) / lastRevenue) * 100;
 
             // 2. OPERATIONAL PULSE (HR)
+            const workforceWhere: any = { user: { isActive: true } };
+            const reportWhere: any = { date: { gte: startOfMonth } };
+
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                workforceWhere.userId = { in: subIds };
+                reportWhere.employee = { userId: { in: subIds } };
+            } else if (user.role !== 'SUPER_ADMIN' && user.companyId) {
+                workforceWhere.user.companyId = user.companyId;
+                reportWhere.companyId = user.companyId;
+            }
+
             const activeEmployees = await prisma.employeeProfile.count({
-                where: {
-                    user: {
-                        isActive: true,
-                        ...(user.role !== 'SUPER_ADMIN' ? { companyId: user.companyId } : {})
-                    }
-                }
+                where: workforceWhere
             });
 
             // Avg Productivity & Support Activity
             const recentReports = await prisma.workReport.findMany({
-                where: {
-                    date: { gte: startOfMonth },
-                    ...(user.role !== 'SUPER_ADMIN' ? { companyId: user.companyId } : {})
-                },
+                where: reportWhere,
                 select: {
                     hoursSpent: true,
                     selfRating: true,
@@ -92,13 +97,16 @@ export async function GET(req: NextRequest) {
 
             // 3. MARKET REACH (Customers)
             const activeSubscribers = await prisma.subscription.count({
-                where: { status: 'ACTIVE' }
+                where: {
+                    status: 'ACTIVE',
+                    ...(user.role !== 'SUPER_ADMIN' ? { companyId: user.companyId } : {})
+                }
             });
 
             // 4. AI DECISION FEED (Aggregated Risks)
             // -- Flight Risk (High Severity Only)
             const employees = await prisma.employeeProfile.findMany({
-                where: { user: { isActive: true } },
+                where: workforceWhere,
                 include: { attendance: { take: 30, orderBy: { date: 'desc' } } }
             });
             const flightRisks = employees.filter((e: any) => {
@@ -114,8 +122,14 @@ export async function GET(req: NextRequest) {
             }));
 
             // -- Churn Risk (High Value)
+            const subscriptionFilter = (user.role !== 'SUPER_ADMIN' && user.companyId) ? { companyId: user.companyId } : {};
             const expiringSubs = await prisma.subscription.findMany({
-                where: { status: 'ACTIVE', endDate: { lte: new Date(Date.now() + 86400000 * 30) }, total: { gte: 10000 } },
+                where: {
+                    status: 'ACTIVE',
+                    endDate: { lte: new Date(Date.now() + 86400000 * 30) },
+                    total: { gte: 10000 },
+                    ...subscriptionFilter
+                },
                 include: { customerProfile: true }
             });
             const revenueRisks = expiringSubs.map((s: any) => ({
@@ -141,13 +155,22 @@ export async function GET(req: NextRequest) {
             const today = new Date();
             const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
+            const where: any = { user: { isActive: true } };
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                where.userId = { in: subIds };
+            } else if (user.companyId) {
+                where.user.companyId = user.companyId;
+            }
+
             // 1. Team Performance Aggregation
             const employees = await prisma.employeeProfile.findMany({
-                where: { user: { companyId: user.companyId, isActive: true } },
+                where,
                 include: {
                     workReports: {
                         where: { date: { gte: startOfMonth } }
-                    }
+                    },
+                    user: { select: { name: true, email: true } }
                 }
             });
 
@@ -205,8 +228,16 @@ export async function GET(req: NextRequest) {
             const startDate = searchParams.get('startDate') ? new Date(searchParams.get('startDate')!) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
             const endDate = searchParams.get('endDate') ? new Date(searchParams.get('endDate')!) : new Date();
 
+            const where: any = { user: { isActive: true } };
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                where.userId = { in: subIds };
+            } else if (user.companyId) {
+                where.user.companyId = user.companyId;
+            }
+
             const employees = await prisma.employeeProfile.findMany({
-                where: { user: { isActive: true, companyId: user.companyId } },
+                where,
                 include: {
                     user: { select: { name: true, email: true } as any },
                     workReports: {
@@ -286,12 +317,17 @@ export async function GET(req: NextRequest) {
 
         // SALES / ORIGINAL LOGIC
         // 1. Calculate Projected Revenue (Simple Forecast)
+        const companyFilter = (user.role !== 'SUPER_ADMIN' && user.companyId) ? { companyId: user.companyId } : {};
+
         // Get last 6 months revenue
         const sixMonthsAgo = new Date();
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
         const payments = await prisma.payment.findMany({
-            where: { paymentDate: { gte: sixMonthsAgo } },
+            where: {
+                paymentDate: { gte: sixMonthsAgo },
+                ...companyFilter
+            },
             select: { amount: true, paymentDate: true }
         });
 
@@ -319,7 +355,8 @@ export async function GET(req: NextRequest) {
         const expiringSubs = await prisma.subscription.findMany({
             where: {
                 status: 'ACTIVE',
-                endDate: { lte: sixtyDaysFromNow, gte: new Date() }
+                endDate: { lte: sixtyDaysFromNow, gte: new Date() },
+                ...companyFilter
             },
             include: {
                 customerProfile: {
@@ -349,11 +386,7 @@ export async function GET(req: NextRequest) {
             }));
 
         // 3. Identify Upsell Opportunities
-        // Logic: Customers with > 1 active subscription OR high value single subs, suggesting they are power users
-        // For heuristic: Customers with "Interested" outcome recently but no new sub created (simplified)
-        // Alternative Heuristic: Institutional customers with large user base (if we had that data) or just high value customers.
-        // Let's go with: Customers who have logged "Interested" in potential new products in Comm Logs
-
+        // Logic: Customers who have logged "Interested" in potential new products in Comm Logs
         const interestedCustomers = await prisma.customerProfile.findMany({
             where: {
                 communications: {
@@ -361,7 +394,8 @@ export async function GET(req: NextRequest) {
                         outcome: 'Interested',
                         date: { gte: sixMonthsAgo }
                     }
-                }
+                },
+                ...companyFilter
             },
             select: { id: true, name: true }
         });

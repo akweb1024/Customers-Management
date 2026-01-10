@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authorizedRoute } from '@/lib/middleware-auth';
 import { createErrorResponse } from '@/lib/api-utils';
+import { getDownlineUserIds } from '@/lib/hierarchy';
 
 export const GET = authorizedRoute(
     ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'FINANCE_ADMIN'],
@@ -13,7 +14,24 @@ export const GET = authorizedRoute(
             const where: any = {
                 companyId: user.companyId || undefined
             };
-            if (employeeId) where.employeeId = employeeId;
+
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                where.employee = { userId: { in: [...subIds, user.id] } };
+            }
+
+            if (employeeId) {
+                // If it's a manager, ensure the employee is in their downline
+                if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                    const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                    const allowedIds = [...subIds, user.id];
+                    const targetEmp = await prisma.employeeProfile.findUnique({ where: { id: employeeId }, select: { userId: true } });
+                    if (!targetEmp || !allowedIds.includes(targetEmp.userId)) {
+                        return createErrorResponse('Forbidden: Not in your team', 403);
+                    }
+                }
+                where.employeeId = employeeId;
+            }
 
             const advances = await prisma.salaryAdvance.findMany({
                 where,

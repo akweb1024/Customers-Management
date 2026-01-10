@@ -1,215 +1,60 @@
 # STM Customer Management System
 
-A comprehensive web application for managing journal subscriptions, customers, sales channels, and analytics.
+A comprehensive web application for managing journal subscriptions, customers, institutions, and HR operations. Built with Next.js, TypeScript, and Prisma.
 
-## 🚀 Features
+## 🚀 Core Features
 
-### Phase 1, 2, 3 & 4 - Currently Implemented
-- ✅ **NextAuth Integration**: Secure authentication with NextAuth.js v5, session management, and role-based access control.
-- ✅ **HR Management System**: Complete employee lifecycle management with profiles, attendance, performance reviews, and salary tracking.
-- ✅ **Institution-Centric Architecture**: Unified dashboards for universities/libraries with bulk member assignment.
-- ✅ **Advanced Data Hub**: Bulk CSV Import/Export for Institutions, Customers, Journals, and Subscriptions.
-- ✅ **Dynamic Assignment Manager**: Multi-executive assignment tracking (Primary/Secondary/Support) for customers.
-- ✅ **Subscription Lifecycle**: Request -> Approval -> Billing -> Activation with automated financials.
-- ✅ **Automated Financials**: Invoice generation, payment tracking, and agency commission (10%) management.
-- ✅ **Communication Engine**: Professional email automation for renewals, requests, and bulk broadcasts.
-- ✅ **Analytics Suite**: Revenue trends, journal performance, and institutional activity dashboards.
-- ✅ **Task Management**: Integrated CRM follow-up system with status tracking and resolution logs.
+### 🏢 Institution & Customer Management
+- **Institution Hub**: Unified view for libraries/universities with aggregated metrics across all affiliated members.
+- **Bulk Operations**: Mass assignment of service executives to institution members.
+- **Data Portability**: Bulk CSV Import/Export for Institutions, Customers, Journals, and Subscriptions.
+- **Dynamic Assignments**: Multi-level executive tracking (Primary, Secondary, and Support roles).
+
+### 👥 HR & Staff Management
+- **Complete Portal**: Employee self-service for attendance, work reports, and leave management.
+- **Recruitment Pipeline**: End-to-end management from job posting to onboard exams and interview logs.
+- **Performance & Growth**: Grade tracking, promotion history, and automated productivity analysis.
+- **Financial Details**: Automated salary slips and commission (10% agency) tracking.
+
+### 🔐 Security & Auth
+- **NextAuth v5**: Secure session management with HTTP-only cookies and RBAC.
+- **Impersonation**: Super-admin capability to view the dashboard as any other user for troubleshooting.
+- **Standardized Middleware**: Uniform route protection across all API segments.
 
 ## 🛠️ Tech Stack
+- **Frontend**: Next.js 15, React, Tailwind CSS, Lucide Icons
+- **Backend**: Next.js API Routes, Prisma ORM v7
+- **Database**: PostgreSQL
+- **State/Data**: React Query, Zod Validation
 
-- **Frontend**: Next.js 15 (React), TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes
-- **Database**: PostgreSQL with Prisma ORM v7
-- **Authentication**: NextAuth.js v5 (Beta) with JWT strategy
-- **Validation**: Zod schemas for type-safe validation
-- **State Management**: React Query for server state
-- **Styling**: Tailwind CSS with custom design system
+## ⚙️ Setup & Development
 
-## 📦 Installation
+### 1. Prerequisites
+- Node.js 18+
+- PostgreSQL instance
 
-### Prerequisites
-
-- Node.js 18+ and npm
-- PostgreSQL 14+
-
-### Setup Steps
-
-1. **Clone and navigate to the project**
-   ```bash
-   cd /home/itb-09/Desktop/architecture/stmCustomer
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Set up PostgreSQL database**
-   ```bash
-   # Create a PostgreSQL database named 'stm_customer'
-   createdb stm_customer
-   ```
-
-4. **Configure environment variables**
-   ```bash
-   # Copy the example env file
-   cp .env.example .env
-   
-   # Edit .env and update DATABASE_URL with your PostgreSQL credentials
-   # Format: postgresql://username:password@localhost:5432/stm_customer
-   ```
-
-5. **Generate Prisma client and push schema to database**
-   ```bash
-   npx prisma generate
-   npx prisma db push
-   ```
-
-6. **Run the development server**
-   ```bash
-   npm run dev
-   ```
-
-7. **Open your browser**
-   Navigate to `http://localhost:3000`
-
-## 📊 Database Management
-
-### Prisma Commands
-
+### 2. Installation
 ```bash
-# Generate Prisma Client
-npm run prisma:generate
-
-# Push schema to database (development)
-npm run prisma:push
-
-# Open Prisma Studio (database GUI)
-npm run prisma:studio
-
-# Create and apply migrations (production)
-npx prisma migrate dev --name init
+npm install
+npx prisma generate
 ```
 
-## 🔐 User Roles & Permissions
+### 3. Environment Configuration
+Create a `.env` file from the provided template. Essential keys:
+- `DATABASE_URL`: Your Postgres connection string.
+- `AUTH_SECRET`: Random string for session encryption.
+- `NEXTAUTH_URL`: Your base application URL.
 
-1. **CUSTOMER** - Manage own profile and subscriptions
-2. **AGENCY** - Manage clients and agency subscriptions
-3. **SALES_EXECUTIVE** - Manage assigned customers and create subscriptions
-4. **MANAGER** - Oversee team performance and analytics
-5. **FINANCE_ADMIN** - Manage invoices and payments
-6. **SUPER_ADMIN** - Full system access
-
-## 🎨 Design System
-
-The application features a premium design system with:
-
-- **Color Palette**: Primary (Blue), Success (Green), Warning (Yellow), Danger (Red)
-- **Typography**: Inter font family
-- **Components**: Reusable buttons, cards, forms, badges, tables
-- **Animations**: Fade-in, slide-in, and subtle pulse effects
-- **Responsive**: Mobile-first design approach
-
-## 📁 Project Structure
-
-```
-stmCustomer/
-├── src/
-│   ├── app/
-│   │   ├── api/          # API routes
-│   │   ├── dashboard/    # Dashboard pages
-│   │   ├── login/        # Login page
-│   │   ├── register/     # Registration page
-│   │   ├── globals.css   # Global styles
-│   │   ├── layout.tsx    # Root layout
-│   │   └── page.tsx      # Landing page
-│   ├── components/
-│   │   ├── dashboard/    # Dashboard components
-│   │   └── ui/           # Reusable UI components
-│   ├── lib/
-│   │   ├── auth.ts       # Authentication utilities
-│   │   └── prisma.ts     # Prisma client
-│   └── types/
-│       └── index.ts      # TypeScript types
-├── prisma/
-│   └── schema.prisma     # Database schema
-├── public/               # Static assets
-├── .env.example          # Environment variables template
-├── next.config.js        # Next.js configuration
-├── tailwind.config.ts    # Tailwind configuration
-├── tsconfig.json         # TypeScript configuration
-└── package.json          # Dependencies
-```
-
-## 🔧 Development
-
-### Available Scripts
-
+### 4. Running Locally
 ```bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run start        # Start production server
-npm run lint         # Run ESLint
+npm run dev # Access at http://localhost:3000
 ```
 
-### Code Quality
-
-- **TypeScript**: Strict mode enabled for type safety
-- **ESLint**: Code linting and formatting
-- **Prisma**: Type-safe database access
-
-## 🌐 Environment Variables
-
-Create a `.env` file based on `.env.example`:
-
-```env
-# Database
-DATABASE_URL="postgresql://user:password@localhost:5432/stm_customer?schema=public"
-
-# NextAuth (Required!)
-AUTH_SECRET="your-generated-secret-at-least-32-chars-long"
-NEXTAUTH_SECRET="your-generated-secret-at-least-32-chars-long"
-NEXTAUTH_URL="http://localhost:3000"
-
-# Legacy JWT (for backward compatibility)
-JWT_SECRET="your-super-secret-jwt-key-change-in-production"
-
-# App Configuration
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-NODE_ENV="development"
-
-# Push Notifications (Optional)
-NEXT_PUBLIC_VAPID_PUBLIC_KEY="your-vapid-public-key"
-VAPID_PRIVATE_KEY="your-vapid-private-key"
-```
-
-## 📖 API Endpoints
-
-### Authentication
-
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
-
-### Analytics & Reporting
-- `GET /api/dashboard/stats` - Global overview metrics
-- `GET /api/dashboard/revenue` - Financial performance time-series
-- `GET /api/institutions/activity` - Institutional engagement tracking
-- `GET /api/dashboard/data-hub` - Data integrity and count checks
-
-### Data Portability
-- `POST /api/imports/[type]` - Bulk CSV data ingestion
-- `GET /api/exports/[type]` - Secured CSV data extraction
-
-## 🤝 Contributing
-
-This is a private project. For questions or issues, contact the development team.
-
-## 📄 License
-
-Proprietary - All rights reserved
+## 📊 Documentation
+For more detailed information, please refer to:
+- [CHANGELOG.md](./CHANGELOG.md): History of updates and fixed bugs.
+- [DEPLOYMENT.md](./DEPLOYMENT.md): Production setup and troubleshooting.
+- [QUICK_REFERENCE.md](./QUICK_REFERENCE.md): Developer guide for APIs and components.
 
 ---
-
-**Built with ❤️ using Next.js, TypeScript, and Tailwind CSS**
-# Customers-Management
+**Proprietary - All rights reserved**

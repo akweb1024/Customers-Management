@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authorizedRoute } from '@/lib/middleware-auth';
 import { createErrorResponse } from '@/lib/api-utils';
+import { getDownlineUserIds } from '@/lib/hierarchy';
 
 export const GET = authorizedRoute(
     ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'HR_MANAGER'],
@@ -12,9 +13,24 @@ export const GET = authorizedRoute(
             const endDate = searchParams.get('endDate') ? new Date(searchParams.get('endDate')!) : new Date();
             const companyId = user.companyId;
 
+            const where: any = {
+                user: {
+                    isActive: true
+                }
+            };
+
+            if (companyId) {
+                where.user.companyId = companyId;
+            }
+
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, companyId || undefined);
+                where.user.id = { in: subIds };
+            }
+
             // Fetch all employees and their work reports in the date range
             const employees = await prisma.employeeProfile.findMany({
-                where: companyId ? { user: { companyId } } : {},
+                where: where,
                 include: {
                     user: {
                         select: { name: true, email: true, role: true }

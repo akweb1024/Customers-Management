@@ -100,6 +100,16 @@ export const PATCH = authorizedRoute(
             // 1. Handle User-level updates (Role, Active Status, Name, Manager)
             if (validUpdates.role || validUpdates.isActive !== undefined || validUpdates.name || validUpdates.managerId !== undefined) {
                 const emp = await prisma.employeeProfile.findUnique({ where: { id }, select: { userId: true } });
+                if (!emp) return createErrorResponse('Employee not found', 404);
+
+                // Access Control: Manager can only update their own team
+                if (user.role === 'MANAGER') {
+                    const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                    if (!subIds.includes(emp.userId)) {
+                        return createErrorResponse('Forbidden: Not in your team', 403);
+                    }
+                }
+
                 if (emp) {
                     await prisma.user.update({
                         where: { id: emp.userId },

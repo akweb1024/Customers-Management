@@ -519,7 +519,9 @@ export default function StaffPortalPage() {
                                             <h4 className="font-bold text-secondary-900">{report.title}</h4>
                                             <span className="text-[10px] uppercase font-bold text-secondary-400"><FormattedDate date={report.date} /></span>
                                         </div>
-                                        <p className="text-sm text-secondary-600 mb-4">{report.content}</p>
+                                        <div className="bg-secondary-50/50 p-4 rounded-xl mb-4 border border-secondary-100">
+                                            <p className="text-secondary-600 text-sm whitespace-pre-wrap leading-relaxed">{report.content}</p>
+                                        </div>
 
                                         {/* Advanced Metrics Display */}
                                         <div className="bg-secondary-50 p-3 rounded-xl mb-4 text-xs space-y-2 border border-secondary-100">
@@ -551,6 +553,72 @@ export default function StaffPortalPage() {
                                             <div className="mt-4 p-3 bg-secondary-50 rounded-lg text-xs border-l-2 border-warning-400">
                                                 <p className="font-bold text-secondary-500 mb-1">MANAGER COMMENT:</p>
                                                 <p className="text-secondary-700 italic">{report.managerComment}</p>
+                                            </div>
+                                        )}
+
+                                        {/* Comments / Clarification Thread */}
+                                        <div className="mt-6 space-y-3 pt-4 border-t border-secondary-50">
+                                            <h5 className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">Clarification Thread</h5>
+                                            <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2">
+                                                {report.comments?.map((comment: any) => (
+                                                    <div key={comment.id} className="bg-white p-3 rounded-xl border border-secondary-50 shadow-sm">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <span className={`text-[10px] font-black ${comment.authorId === user?.id ? 'text-primary-600' : 'text-indigo-600'}`}>
+                                                                {comment.author?.email?.split('@')[0]} {comment.authorId === user?.id ? '(You)' : '(Manager)'}
+                                                            </span>
+                                                            <span className="text-[8px] font-bold text-secondary-400">{new Date(comment.createdAt).toLocaleDateString()}</span>
+                                                        </div>
+                                                        <p className="text-[11px] text-secondary-700 leading-normal">{comment.content}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Add clarification..."
+                                                    className="input text-[11px] py-1.5 flex-1"
+                                                    onKeyDown={async (e) => {
+                                                        if (e.key === 'Enter') {
+                                                            const val = (e.target as HTMLInputElement).value;
+                                                            if (!val) return;
+                                                            const token = localStorage.getItem('token');
+                                                            const res = await fetch('/api/hr/work-reports/comments', {
+                                                                method: 'POST',
+                                                                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ reportId: report.id, content: val })
+                                                            });
+                                                            if (res.ok) {
+                                                                (e.target as HTMLInputElement).value = '';
+                                                                fetchAllData();
+                                                            }
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Edit Option for Pending same-day reports */}
+                                        {report.status === 'SUBMITTED' && new Date(report.date).toDateString() === new Date().toDateString() && (
+                                            <div className="mt-4 flex justify-end">
+                                                <button
+                                                    onClick={() => {
+                                                        const newContent = prompt("Update your report content:", report.content);
+                                                        if (newContent !== null) {
+                                                            const token = localStorage.getItem('token');
+                                                            fetch('/api/hr/work-reports', {
+                                                                method: 'PUT',
+                                                                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ id: report.id, content: newContent })
+                                                            }).then(res => {
+                                                                if (res.ok) fetchAllData();
+                                                                else alert("Failed to update");
+                                                            });
+                                                        }
+                                                    }}
+                                                    className="text-[10px] font-black text-primary-600 hover:text-primary-700 uppercase tracking-tighter"
+                                                >
+                                                    Edit Report Content
+                                                </button>
                                             </div>
                                         )}
                                     </div>

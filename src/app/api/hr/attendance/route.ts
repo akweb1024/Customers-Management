@@ -181,7 +181,7 @@ export const POST = authorizedRoute(
 );
 
 export const PATCH = authorizedRoute(
-    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEAM_LEADER'],
     async (req: NextRequest, user) => {
         try {
             const body = await req.json();
@@ -192,6 +192,22 @@ export const PATCH = authorizedRoute(
             }
 
             const { id, checkIn, checkOut, status } = result.data;
+
+            const existing = await prisma.attendance.findUnique({
+                where: { id },
+                include: { employee: true }
+            });
+
+            if (!existing) return createErrorResponse('Attendance record not found', 404);
+
+            // Access Control: Manager/TL can only correct their own team
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                if (!subIds.includes(existing.employee.userId)) {
+                    return createErrorResponse('Forbidden: Not in your team', 403);
+                }
+            }
+
             const data: any = {};
             if (checkIn) data.checkIn = checkIn;
             if (checkOut !== undefined) data.checkOut = checkOut;

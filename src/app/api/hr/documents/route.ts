@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authorizedRoute } from '@/lib/middleware-auth';
 import { createErrorResponse } from '@/lib/api-utils';
+import { getDownlineUserIds } from '@/lib/hierarchy';
 
 export const GET = authorizedRoute(
     ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
@@ -12,6 +13,16 @@ export const GET = authorizedRoute(
 
             if (!employeeId) {
                 return createErrorResponse('Employee ID required', 400);
+            }
+
+            // Manager Check
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                const allowedIds = [...subIds, user.id];
+                const targetEmp = await prisma.employeeProfile.findUnique({ where: { id: employeeId }, select: { userId: true } });
+                if (!targetEmp || !allowedIds.includes(targetEmp.userId)) {
+                    return createErrorResponse('Forbidden: Not in your team', 403);
+                }
             }
 
             const documents = await prisma.employeeDocument.findMany({
@@ -27,11 +38,26 @@ export const GET = authorizedRoute(
 );
 
 export const POST = authorizedRoute(
-    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEAM_LEADER'],
     async (req: NextRequest, user) => {
         try {
             const body = await req.json();
             const { employeeId, name, fileUrl, fileType } = body;
+
+            const targetEmp = await prisma.employeeProfile.findUnique({
+                where: { id: employeeId },
+                select: { userId: true }
+            });
+
+            if (!targetEmp) return createErrorResponse('Employee not found', 404);
+
+            // Access Control: Manager/TL can only upload for their own team
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                if (!subIds.includes(targetEmp.userId)) {
+                    return createErrorResponse('Forbidden: Not in your team', 403);
+                }
+            }
 
             const doc = await prisma.employeeDocument.create({
                 data: {

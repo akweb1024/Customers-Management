@@ -138,7 +138,7 @@ export const usePerformanceReviews = () => {
 export const useHRInsights = (enabled: boolean = true) => {
     return useQuery<any>({
         queryKey: ['hr-insights'],
-        queryFn: () => fetchJson('/api/hr/analytics'),
+        queryFn: () => fetchJson('/api/ai-insights?type=hr'),
         enabled,
     });
 };
@@ -302,7 +302,18 @@ export const useWorkReportMutations = () => {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['work-reports'] }),
     });
 
-    return { updateStatus };
+    const updateReport = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/work-reports', 'PUT', data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['work-reports'] }),
+    });
+
+    const addComment = useMutation({
+        mutationFn: (data: { reportId: string, content: string }) =>
+            fetchJson(`/api/hr/work-reports/comments`, 'POST', data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['work-reports'] }),
+    });
+
+    return { updateStatus, updateReport, addComment };
 };
 
 export const usePerformanceReviewMutation = () => {
@@ -351,4 +362,25 @@ export const useOnboardingMutations = () => {
         },
     });
     return { createModule };
+};
+
+export const useDepartmentMutations = () => {
+    const queryClient = useQueryClient();
+
+    const create = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/departments', 'POST', data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['departments'] }),
+    });
+
+    const update = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/departments', 'PATCH', data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['departments'] }),
+    });
+
+    const remove = useMutation({
+        mutationFn: (id: string) => fetchJson(`/api/hr/departments?id=${id}`, 'DELETE'),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['departments'] }),
+    });
+
+    return { create, update, remove };
 };

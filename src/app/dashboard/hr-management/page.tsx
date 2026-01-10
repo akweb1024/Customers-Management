@@ -13,6 +13,7 @@ import RecruitmentBoard from '@/components/dashboard/hr/RecruitmentBoard';
 import JobPostingModal from '@/components/dashboard/hr/JobPostingModal';
 import PerformanceReviewModal from '@/components/dashboard/hr/PerformanceReviewModal';
 import AttendanceModal from '@/components/dashboard/hr/AttendanceModal';
+import DepartmentManager from '@/components/dashboard/hr/DepartmentManager';
 import { Briefcase, Info, Target, TrendingUp, Award, GraduationCap, Edit, Trash2 } from 'lucide-react';
 import {
     useEmployees, useHolidays, useDesignations, useJobs, useApplications,
@@ -22,7 +23,7 @@ import {
     useWorkReports, useProductivity, useDocuments, useLeaveRequestMutations,
     useDocumentMutations, usePerformanceReviews, useHRInsights,
     useBulkSalaryMutation, useLeaveMonitor, useAdvances, useAdvanceMutations,
-    useLeaveLedger, useUpdateLeaveLedger
+    useLeaveLedger, useUpdateLeaveLedger, useDepartmentMutations
 } from '@/hooks/useHR';
 
 const FormattedTime = ({ date }: { date: string | Date | null }) => {
@@ -150,7 +151,7 @@ const HRManagementContent = () => {
     const updateEmployeeMutation = useUpdateEmployee();
     const createJobMutation = useCreateJob();
     const updateJobMutation = useUpdateJob();
-    const { updateStatus: updateReportStatus } = useWorkReportMutations();
+    const { updateStatus: updateStatusMutation, updateReport, addComment: addReportComment } = useWorkReportMutations();
     const performanceReviewMutation = usePerformanceReviewMutation();
     const { correct: attendanceCorrectionMutation } = useAttendanceMutations();
     const deleteEmployeeMutation = useDeleteEmployee();
@@ -158,6 +159,7 @@ const HRManagementContent = () => {
     const { upload: uploadDoc, remove: removeDoc } = useDocumentMutations();
     const bulkSalaryMutation = useBulkSalaryMutation();
     const { create: createAdvance } = useAdvanceMutations();
+    const { create: createDept, update: updateDept, remove: removeDept } = useDepartmentMutations();
 
     const [showAdvanceModal, setShowAdvanceModal] = useState(false);
     const [advanceForm, setAdvanceForm] = useState({ employeeId: '', amount: '', totalEmis: '1', reason: '', startDate: new Date().toISOString().split('T')[0] });
@@ -311,7 +313,7 @@ const HRManagementContent = () => {
 
     const handleReportAction = async (reportId: string, status: 'APPROVED' | 'REVIEWED', rating?: number) => {
         try {
-            await updateReportStatus.mutateAsync({
+            await updateStatusMutation.mutateAsync({
                 id: reportId,
                 status,
                 managerComment: status === 'APPROVED' ? 'Approved & Verified' : 'Reviewed',
@@ -465,7 +467,7 @@ const HRManagementContent = () => {
                 </div>
 
                 <div className="flex gap-2 bg-white p-2 rounded-2xl shadow-sm border border-secondary-100 w-fit overflow-x-auto max-w-full">
-                    {['employees', 'documents', 'recruitment', 'onboarding', 'map', 'reports', 'leaves', 'leave-ledger', 'attendance', 'payroll', 'advances', 'analytics', 'holidays', 'productivity'].map(tab => (
+                    {['employees', 'departments', 'documents', 'recruitment', 'onboarding', 'map', 'reports', 'leaves', 'leave-ledger', 'attendance', 'payroll', 'advances', 'analytics', 'holidays', 'productivity'].map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -584,6 +586,10 @@ const HRManagementContent = () => {
                     </div>
                 )} { /* End of documents tab */}
 
+                {activeTab === 'departments' && (
+                    <DepartmentManager userRole={userRole} />
+                )}
+
                 {activeTab === 'reports' && (
                     <div className="space-y-6">
                         {/* Filters & Controls */}
@@ -672,56 +678,212 @@ const HRManagementContent = () => {
                             {workReports.length === 0 ? (
                                 <div className="col-span-full py-20 text-center card-premium text-secondary-400 italic">No work reports found for the selected criteria.</div>
                             ) : workReports.map(report => (
-                                <div key={report.id} className="card-premium group">
+                                <div key={report.id} className="card-premium group relative">
                                     <div className="flex justify-between items-start mb-4">
-                                        <span className={`px-2 py-1 text-[10px] font-black rounded ${report.status === 'APPROVED' ? 'bg-success-50 text-success-700' : 'bg-warning-50 text-warning-700'}`}>{report.status}</span>
+                                        <div className="flex gap-2">
+                                            <span className={`px-2 py-1 text-[10px] font-black rounded ${report.status === 'APPROVED' ? 'bg-success-50 text-success-700' : report.status === 'REVIEWED' ? 'bg-indigo-50 text-indigo-700' : 'bg-warning-50 text-warning-700'}`}>{report.status}</span>
+                                            <span className="px-2 py-1 text-[10px] font-black rounded bg-secondary-50 text-secondary-600 uppercase tracking-tighter">{report.category}</span>
+                                        </div>
                                         <span className="text-[10px] font-bold text-secondary-400 uppercase"><FormattedDate date={report.date} /></span>
                                     </div>
-                                    <h4 className="font-bold text-secondary-900 mb-1">{report.title}</h4>
-                                    <p className="text-secondary-500 text-sm line-clamp-3 mb-2">{report.content}</p>
 
-                                    {/* Metrics pill list */}
-                                    <div className="flex flex-wrap gap-2 mb-4">
-                                        {report.revenueGenerated > 0 && <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-black border border-amber-100">₹{report.revenueGenerated.toLocaleString()}</span>}
-                                        {report.tasksCompleted > 0 && <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] font-black border border-emerald-100">{report.tasksCompleted} Tasks</span>}
-                                        {report.ticketsResolved > 0 && <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full text-[10px] font-black border border-rose-100">{report.ticketsResolved} Tickets</span>}
-                                        {report.chatsHandled > 0 && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-black border border-blue-100">{report.chatsHandled} Chats</span>}
-                                        {report.followUpsCompleted > 0 && <span className="bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full text-[10px] font-black border border-cyan-100">{report.followUpsCompleted} Followups</span>}
-                                        {report.hoursSpent > 0 && <span className="bg-secondary-50 text-secondary-600 px-2 py-0.5 rounded-full text-[10px] font-black border border-secondary-100">{report.hoursSpent} Hrs</span>}
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 bg-secondary-900 text-white rounded-xl flex items-center justify-center font-black text-sm">
+                                            {(report.employee?.user?.email?.[0] || 'E').toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-secondary-900 leading-tight">{report.employee?.user?.email?.split('@')[0]}</p>
+                                            <p className="text-[10px] font-bold text-secondary-400 uppercase">{report.employee?.designation}</p>
+                                        </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between pt-4 border-t border-secondary-50">
+                                    <h4 className="font-bold text-secondary-900 mb-2">{report.title}</h4>
+                                    <div className="bg-secondary-50/50 p-4 rounded-2xl mb-4 border border-secondary-100">
+                                        <p className="text-secondary-600 text-sm whitespace-pre-wrap leading-relaxed">{report.content}</p>
+                                        {report.keyOutcome && (
+                                            <div className="mt-3 pt-3 border-t border-secondary-100">
+                                                <p className="text-[9px] font-black text-secondary-400 uppercase mb-1">Key Outcome</p>
+                                                <p className="text-xs font-bold text-secondary-900 italic">&quot;{report.keyOutcome}&quot;</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Metrics pill list */}
+                                    <div className="flex flex-wrap gap-2 mb-6">
+                                        {report.revenueGenerated > 0 && <span className="bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black border border-amber-200">₹{report.revenueGenerated.toLocaleString()} Generated</span>}
+                                        {report.tasksCompleted > 0 && <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black border border-emerald-200">{report.tasksCompleted} Tasks</span>}
+                                        {report.hoursSpent > 0 && <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-black border border-indigo-200">{report.hoursSpent} Hrs Spent</span>}
+                                        {report.kraMatchRatio !== null && (
+                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black border ${report.kraMatchRatio > 0.6 ? 'bg-success-50 text-success-700 border-success-200' : 'bg-warning-50 text-warning-700 border-warning-200'}`}>
+                                                KRA Align: {Math.round(report.kraMatchRatio * 100)}%
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Comments Section */}
+                                    <div className="space-y-3 mb-6">
+                                        <h5 className="text-[10px] font-black text-secondary-400 uppercase tracking-widest border-b border-secondary-100 pb-2">Internal Thread / Clarification</h5>
+                                        {report.comments?.length === 0 ? (
+                                            <p className="text-[10px] text-secondary-400 italic">No comments yet.</p>
+                                        ) : (
+                                            <div className="space-y-2 max-h-[150px] overflow-y-auto pr-2">
+                                                {report.comments?.map((comment: any) => (
+                                                    <div key={comment.id} className="bg-white p-3 rounded-xl border border-secondary-100 shadow-sm">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <span className="text-[10px] font-black text-primary-600">{comment.author?.email?.split('@')[0]}</span>
+                                                            <span className="text-[8px] font-bold text-secondary-400">{new Date(comment.createdAt).toLocaleDateString()}</span>
+                                                        </div>
+                                                        <p className="text-[11px] text-secondary-700 leading-normal">{comment.content}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                id={`comment-${report.id}`}
+                                                className="input text-[11px] py-1.5 flex-1"
+                                                placeholder="Add clarification or review comment..."
+                                                onKeyDown={async (e) => {
+                                                    if (e.key === 'Enter') {
+                                                        const val = (e.target as HTMLInputElement).value;
+                                                        if (!val) return;
+                                                        try {
+                                                            await addReportComment.mutateAsync({ reportId: report.id, content: val });
+                                                            (e.target as HTMLInputElement).value = '';
+                                                        } catch (err) { alert('Failed'); }
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between pt-4 border-t border-secondary-100">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-6 h-6 bg-secondary-100 rounded-full flex items-center justify-center text-[10px] font-bold">{report.employee?.user.email?.[0].toUpperCase() || '?'}</div>
-                                            <span className="text-[10px] font-bold text-secondary-50">{report.employee?.user.email?.split('@')[0] || 'Unknown'}</span>
-                                            {report.selfRating && <span className="text-[9px] bg-secondary-100 text-secondary-600 px-1 rounded ml-2">Self: {report.selfRating}/10</span>}
+                                            {report.selfRating && (
+                                                <div className="bg-secondary-50 px-2 py-1 rounded-lg">
+                                                    <p className="text-[8px] font-black text-secondary-400 uppercase">Self Rating</p>
+                                                    <p className="text-xs font-black text-secondary-900">{report.selfRating}/10</p>
+                                                </div>
+                                            )}
                                         </div>
                                         {report.status !== 'APPROVED' ? (
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={() => handleReportAction(report.id, 'APPROVED', 5)}
-                                                    className="btn btn-success py-1 px-3 text-[10px] font-bold"
-                                                    title="Approve with 5 Stars"
+                                                    className="btn btn-success py-1.5 px-4 text-[10px] font-black shadow-lg shadow-success-100"
                                                 >
-                                                    Approve ⭐⭐⭐⭐⭐
+                                                    APPROVE 5★
                                                 </button>
                                                 <button
                                                     onClick={() => {
                                                         const rating = prompt("Rate impact (1-5):", "3");
                                                         if (rating) handleReportAction(report.id, 'APPROVED', parseInt(rating));
                                                     }}
-                                                    className="btn btn-primary py-1 px-3 text-[10px]"
+                                                    className="btn btn-primary py-1.5 px-4 text-[10px] font-black shadow-lg shadow-primary-100"
                                                 >
-                                                    Rate & Approve
+                                                    RATE & APPROVE
                                                 </button>
                                             </div>
                                         ) : (
-                                            <div className="flex items-center gap-1 text-warning-400 text-xs">
-                                                <span>Manager Rating:</span>
-                                                <span className="font-bold">{'★'.repeat(report.managerRating || 0)}{'☆'.repeat(5 - (report.managerRating || 0))}</span>
+                                            <div className="flex flex-col items-end">
+                                                <p className="text-[10px] font-black text-warning-600 uppercase mb-1">Manager Rating</p>
+                                                <div className="flex gap-0.5">
+                                                    {[1, 2, 3, 4, 5].map(star => (
+                                                        <span key={star} className={star <= (report.managerRating || 0) ? 'text-warning-400' : 'text-secondary-200'}>★</span>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'leaves' && (
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h3 className="text-2xl font-black text-secondary-900 tracking-tighter uppercase">Leave Applications</h3>
+                                <p className="text-secondary-500 font-medium">Review and manage employee leave requests.</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-secondary-100">
+                                    <span className="text-[10px] font-black text-secondary-400 uppercase block mb-1">Pending Requests</span>
+                                    <span className="text-xl font-black text-warning-600">{leaves.filter(l => l.status === 'PENDING').length}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {leaves.length === 0 ? (
+                                <div className="col-span-full py-20 text-center card-premium text-secondary-400 italic">No leave applications found.</div>
+                            ) : leaves.map(leave => (
+                                <div key={leave.id} className="card-premium group hover:border-primary-300 transition-all">
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-secondary-900 text-white rounded-2xl flex items-center justify-center text-xl font-black">
+                                                {(leave.employee?.user?.email?.[0] || 'U').toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <p className="text-lg font-black text-secondary-900 leading-none mb-1">{leave.employee?.user?.email?.split('@')[0]}</p>
+                                                <p className="text-[10px] font-black text-secondary-400 uppercase tracking-widest">{leave.employee?.designation}</p>
+                                            </div>
+                                        </div>
+                                        <span className={`px-2 py-1 text-[10px] font-black rounded uppercase tracking-widest ${leave.status === 'APPROVED' ? 'bg-success-50 text-success-700' : leave.status === 'REJECTED' ? 'bg-danger-50 text-danger-700' : 'bg-warning-50 text-warning-700'}`}>
+                                            {leave.status}
+                                        </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                        <div className="bg-secondary-50/50 p-3 rounded-2xl border border-secondary-100">
+                                            <p className="text-[9px] font-black text-secondary-400 uppercase tracking-widest mb-1">Duration</p>
+                                            <p className="text-sm font-bold text-secondary-900">
+                                                <FormattedDate date={leave.startDate} /> — <FormattedDate date={leave.endDate} />
+                                            </p>
+                                            <p className="text-[10px] font-bold text-primary-600 mt-1">
+                                                {Math.ceil((new Date(leave.endDate).getTime() - new Date(leave.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1} Days
+                                            </p>
+                                        </div>
+                                        <div className="bg-secondary-50/50 p-3 rounded-2xl border border-secondary-100">
+                                            <p className="text-[9px] font-black text-secondary-400 uppercase tracking-widest mb-1">Type</p>
+                                            <p className="text-sm font-bold text-secondary-900 uppercase">{leave.type}</p>
+                                            <p className="text-[10px] font-bold text-secondary-500 mt-1">Leave Category</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mb-6">
+                                        <p className="text-[10px] font-black text-secondary-400 uppercase tracking-widest mb-2">Reason for Leave</p>
+                                        <div className="bg-white p-4 rounded-2xl border border-secondary-100 text-sm text-secondary-600 italic leading-relaxed">
+                                            &quot;{leave.reason}&quot;
+                                        </div>
+                                    </div>
+
+                                    {leave.status === 'PENDING' && (
+                                        <div className="flex gap-4 pt-4 border-t border-secondary-50">
+                                            <button
+                                                onClick={() => handleLeaveStatus(leave.id, 'APPROVED')}
+                                                className="flex-1 btn btn-success py-3 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-success-100"
+                                            >
+                                                Approve Leave
+                                            </button>
+                                            <button
+                                                onClick={() => handleLeaveStatus(leave.id, 'REJECTED')}
+                                                className="flex-1 btn border-danger-200 text-danger-600 hover:bg-danger-50 py-3 font-black uppercase tracking-widest text-[10px]"
+                                            >
+                                                Reject Application
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {leave.status !== 'PENDING' && (
+                                        <div className="pt-4 border-t border-secondary-50 flex justify-between items-center">
+                                            <p className="text-[10px] font-black text-secondary-400 capitalize">Decision updated on {new Date(leave.createdAt).toLocaleDateString()}</p>
+                                            {leave.status === 'APPROVED' && <span className="text-success-500 text-xl font-black">✓</span>}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

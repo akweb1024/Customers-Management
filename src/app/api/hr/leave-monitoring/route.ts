@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authorizedRoute } from '@/lib/middleware-auth';
 import { createErrorResponse } from '@/lib/api-utils';
+import { getDownlineUserIds } from '@/lib/hierarchy';
 
 export const GET = authorizedRoute(
     ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'HR_MANAGER'],
@@ -14,13 +15,23 @@ export const GET = authorizedRoute(
             const startDate = new Date(year, month - 1, 1);
             const endDate = new Date(year, month, 0);
 
+            const where: any = {
+                user: {
+                    isActive: true
+                }
+            };
+
+            if (user.companyId) {
+                where.user.companyId = user.companyId;
+            }
+
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                where.user.id = { in: subIds };
+            }
+
             const employees = await prisma.employeeProfile.findMany({
-                where: {
-                    user: {
-                        companyId: user.companyId || undefined,
-                        isActive: true
-                    }
-                },
+                where: where,
                 include: {
                     user: {
                         select: {

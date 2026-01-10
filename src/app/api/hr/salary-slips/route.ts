@@ -90,9 +90,19 @@ export const POST = authorizedRoute(
                 const m = parseInt(month);
                 const y = parseInt(year);
 
+                const where: any = {
+                    isActive: true,
+                    companyId: user.companyId
+                };
+
+                if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                    const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                    where.id = { in: subIds };
+                }
+
                 const employees = await prisma.employeeProfile.findMany({
                     where: {
-                        user: { isActive: true, companyId: user.companyId }
+                        user: where
                     },
                     include: {
                         salaryStructure: true

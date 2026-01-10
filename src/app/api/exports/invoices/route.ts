@@ -23,10 +23,10 @@ export async function GET(req: NextRequest) {
         // Generate CSV
         const headers = ['Subscription ID', 'Invoice Number', 'Customer', 'Email', 'Status', 'Amount', 'Currency', 'Due Date', 'Paid Date', 'Created At'];
         const rows = invoices.map(inv => [
-            inv.subscription.id,
+            inv.subscription?.id || 'N/A',
             inv.invoiceNumber,
-            inv.subscription.customerProfile.name,
-            inv.subscription.customerProfile.primaryEmail,
+            inv.subscription?.customerProfile.name || 'N/A',
+            inv.subscription?.customerProfile.primaryEmail || 'N/A',
             inv.status,
             inv.total,
             inv.currency,

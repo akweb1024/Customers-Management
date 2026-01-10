@@ -3,8 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { authorizedRoute } from '@/lib/middleware-auth';
 import { createErrorResponse } from '@/lib/api-utils';
 
+import { getDownlineUserIds } from '@/lib/hierarchy';
+
 export const GET = authorizedRoute(
-    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEAM_LEADER'],
     async (req: NextRequest, user) => {
         try {
             const url = new URL(req.url);
@@ -19,6 +21,7 @@ export const GET = authorizedRoute(
                 include: {
                     user: {
                         select: {
+                            id: true,
                             email: true,
                             role: true,
                             isActive: true,
@@ -54,6 +57,14 @@ export const GET = authorizedRoute(
 
             if (!employee) {
                 return createErrorResponse('Employee not found', 404);
+            }
+
+            // Access Control: Manager/TL can only view their own team
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                if (!subIds.includes(employee.user.id)) {
+                    return createErrorResponse('Forbidden: Not in your team', 403);
+                }
             }
 
             return NextResponse.json(employee);

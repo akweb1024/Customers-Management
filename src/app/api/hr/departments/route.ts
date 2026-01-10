@@ -23,7 +23,7 @@ export const GET = authorizedRoute(
 );
 
 export const POST = authorizedRoute(
-    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    ['SUPER_ADMIN', 'ADMIN'],
     async (req: NextRequest, user) => {
         try {
             const body = await req.json();
@@ -50,6 +50,82 @@ export const POST = authorizedRoute(
             });
 
             return NextResponse.json(department);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
+    }
+);
+
+export const PATCH = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN'],
+    async (req: NextRequest, user) => {
+        try {
+            const body = await req.json();
+            const { id, name, code, description } = body;
+
+            if (!id) return createErrorResponse('ID is required', 400);
+
+            const existing = await prisma.department.findUnique({
+                where: { id }
+            });
+
+            if (!existing) return createErrorResponse('Department not found', 404);
+
+            // Access Control: Must belong to the same company
+            if (user.role !== 'SUPER_ADMIN' && existing.companyId !== user.companyId) {
+                return createErrorResponse('Unauthorized', 403);
+            }
+
+            const updated = await prisma.department.update({
+                where: { id },
+                data: {
+                    name,
+                    code,
+                    description
+                }
+            });
+
+            return NextResponse.json(updated);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
+    }
+);
+
+export const DELETE = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN'],
+    async (req: NextRequest, user) => {
+        try {
+            const { searchParams } = new URL(req.url);
+            const id = searchParams.get('id');
+
+            if (!id) return createErrorResponse('ID is required', 400);
+
+            const existing = await prisma.department.findUnique({
+                where: { id }
+            });
+
+            if (!existing) return createErrorResponse('Department not found', 404);
+
+            // Access Control
+            if (user.role !== 'SUPER_ADMIN' && existing.companyId !== user.companyId) {
+                return createErrorResponse('Unauthorized', 403);
+            }
+
+            // Check if there are employees in this department
+            const employeesCount = await prisma.user.count({
+                where: { departmentId: id }
+            });
+
+            if (employeesCount > 0) {
+                return createErrorResponse('Cannot delete department with active employees', 400);
+            }
+
+            await prisma.department.delete({
+                where: { id }
+            });
+
+            return NextResponse.json({ success: true });
         } catch (error) {
             return createErrorResponse(error);
         }

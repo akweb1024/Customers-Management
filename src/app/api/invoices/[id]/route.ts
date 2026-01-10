@@ -30,6 +30,7 @@ export async function GET(
                         }
                     }
                 },
+                customerProfile: true,
                 payments: true
             }
         });
@@ -40,7 +41,8 @@ export async function GET(
 
         // 3. Authorization Check
         if (decoded.role === 'CUSTOMER') {
-            if (invoice.subscription.customerProfile.userId !== decoded.id) {
+            const customerUserId = invoice.subscription?.customerProfile?.userId || invoice.customerProfile?.userId;
+            if (customerUserId !== decoded.id) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
         }

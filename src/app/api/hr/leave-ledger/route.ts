@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authorizedRoute } from '@/lib/middleware-auth';
 import { createErrorResponse } from '@/lib/api-utils';
+import { getDownlineUserIds } from '@/lib/hierarchy';
 
 export const GET = authorizedRoute(
     ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
@@ -17,11 +18,24 @@ export const GET = authorizedRoute(
                 return createErrorResponse('Company context required', 400);
             }
 
+            const where: any = {
+                user: {
+                    isActive: true
+                }
+            };
+
+            if (companyId) {
+                where.user.companyId = companyId;
+            }
+
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, companyId || undefined);
+                where.user.id = { in: subIds };
+            }
+
             // Fetch all employees in this company context
             const employees = await prisma.employeeProfile.findMany({
-                where: {
-                    user: { companyId: companyId || undefined }
-                },
+                where: where,
                 include: {
                     user: { select: { email: true, name: true } },
                     leaveLedgers: {

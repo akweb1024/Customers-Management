@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authorizedRoute } from '@/lib/middleware-auth';
 import { createErrorResponse } from '@/lib/api-utils';
+import { getDownlineUserIds } from '@/lib/hierarchy';
 import { performanceReviewSchema } from '@/lib/validators/hr';
 
 export const GET = authorizedRoute(
@@ -15,7 +16,10 @@ export const GET = authorizedRoute(
             const where: any = {};
 
             if (showAll && ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role)) {
-                if (user.companyId) {
+                if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                    const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                    where.employee = { userId: { in: [...subIds, user.id] } };
+                } else if (user.companyId) {
                     where.employee = { user: { companyId: user.companyId } };
                 }
             } else if (employeeId) {
@@ -23,6 +27,16 @@ export const GET = authorizedRoute(
                 if (!['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role)) {
                     return createErrorResponse('Forbidden', 403);
                 }
+
+                if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                    const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                    const allowedIds = [...subIds, user.id];
+                    const targetEmp = await prisma.employeeProfile.findUnique({ where: { id: employeeId }, select: { userId: true } });
+                    if (!targetEmp || !allowedIds.includes(targetEmp.userId)) {
+                        return createErrorResponse('Forbidden: Not in your team', 403);
+                    }
+                }
+
                 where.employeeId = employeeId;
                 // Also ensure the employee belongs to the company context
                 if (user.companyId) {
@@ -58,7 +72,7 @@ export const GET = authorizedRoute(
 );
 
 export const POST = authorizedRoute(
-    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEAM_LEADER'],
     async (req: NextRequest, user) => {
         try {
             const body = await req.json();
@@ -69,6 +83,21 @@ export const POST = authorizedRoute(
             }
 
             const { employeeId, rating, feedback } = validation.data;
+
+            const targetEmp = await prisma.employeeProfile.findUnique({
+                where: { id: employeeId },
+                select: { userId: true }
+            });
+
+            if (!targetEmp) return createErrorResponse('Employee not found', 404);
+
+            // Access Control: Manager/TL can only review their own team
+            if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
+                const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
+                if (!subIds.includes(targetEmp.userId)) {
+                    return createErrorResponse('Forbidden: Not in your team', 403);
+                }
+            }
 
             const review = await prisma.performanceReview.create({
                 data: {
