@@ -135,10 +135,10 @@ export const usePerformanceReviews = () => {
     });
 };
 
-export const useHRInsights = (enabled: boolean = true) => {
+export const useHRInsights = (type: string = 'hr', enabled: boolean = true) => {
     return useQuery<any>({
-        queryKey: ['hr-insights'],
-        queryFn: () => fetchJson('/api/ai-insights?type=hr'),
+        queryKey: ['hr-insights', type],
+        queryFn: () => fetchJson(`/api/ai-insights?type=${type}`),
         enabled,
     });
 };

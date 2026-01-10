@@ -154,7 +154,7 @@ const HRManagementContent = () => {
     const { data: prodAnalysis } = useProductivity(prodDateRange.startDate, prodDateRange.endDate);
     const { data: empDocuments = [] } = useDocuments(selectedDocEmp?.id);
     const { data: allReviews = [] } = usePerformanceReviews();
-    const { data: hrInsights } = useHRInsights(activeTab === 'analytics');
+    const { data: hrInsights } = useHRInsights('hr', activeTab === 'analytics');
     const { data: leaveLedger = [] } = useLeaveMonitor(new Date().getMonth() + 1, new Date().getFullYear());
     const { data: manualLedger = [] } = useLeaveLedger(ledgerFilter.month, ledgerFilter.year);
     const updateLedgerMutation = useUpdateLeaveLedger();
@@ -198,13 +198,12 @@ const HRManagementContent = () => {
 
     // ...
 
-    const handleJobSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleJobSubmit = async (data: any) => {
         try {
             if (selectedJob) {
-                await updateJobMutation.mutateAsync({ ...jobForm, id: selectedJob.id });
+                await updateJobMutation.mutateAsync({ ...data, id: selectedJob.id });
             } else {
-                await createJobMutation.mutateAsync(jobForm);
+                await createJobMutation.mutateAsync(data);
             }
             setShowJobModal(false);
         } catch (err: any) {
@@ -340,18 +339,16 @@ const HRManagementContent = () => {
         }
     };
 
-    const handleReviewSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleReviewSubmit = async (data: any) => {
         if (!selectedEmp) return;
         try {
             await performanceReviewMutation.mutateAsync({
                 employeeId: selectedEmp.id,
-                rating: reviewForm.rating,
-                feedback: reviewForm.feedback
+                rating: data.rating,
+                feedback: data.feedback
             });
             setShowReviewModal(false);
             setSelectedEmp(null);
-            setReviewForm({ rating: 5, feedback: '' });
             alert('Review submitted successfully!');
         } catch (err) {
             console.error(err);
@@ -368,18 +365,19 @@ const HRManagementContent = () => {
         }
     };
 
-    const handleAttendanceUpdate = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleAttendanceUpdate = async (data: any) => {
         try {
             await attendanceCorrectionMutation.mutateAsync({
                 id: attendanceForm.id,
-                checkIn: attendanceForm.checkIn ? new Date(attendanceForm.checkIn).toISOString() : null,
-                checkOut: attendanceForm.checkOut ? new Date(attendanceForm.checkOut).toISOString() : null,
-                status: attendanceForm.status
+                checkIn: data.checkIn ? new Date(data.checkIn).toISOString() : null,
+                checkOut: data.checkOut ? new Date(data.checkOut).toISOString() : null,
+                status: data.status
             });
             setShowAttendanceModal(false);
+            alert('Attendance record updated!');
         } catch (err) {
             console.error(err);
+            alert('Correction failed');
         }
     };
 
@@ -1205,7 +1203,7 @@ const HRManagementContent = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-secondary-50">
-                                            {hrInsights.teamAnalysis.map((team: any, i: number) => (
+                                            {(hrInsights.teamAnalysis || []).map((team: any, i: number) => (
                                                 <tr key={i} className="hover:bg-secondary-50/50">
                                                     <td className="p-4 font-bold text-secondary-900 capitalize">{team.role}</td>
                                                     <td className="p-4 text-center text-sm font-bold text-secondary-600">{team.headcount}</td>
@@ -1253,9 +1251,9 @@ const HRManagementContent = () => {
                                     <h3 className="text-lg font-black uppercase tracking-widest flex items-center gap-2"><span>🚨</span> Intelligence Alerts</h3>
                                 </div>
                                 <div className="divide-y divide-secondary-50">
-                                    {hrInsights.insights.length === 0 ? (
+                                    {(hrInsights.insights || []).length === 0 ? (
                                         <p className="p-8 text-center text-secondary-400 italic font-bold">No critical risks detected at this moment.</p>
-                                    ) : hrInsights.insights.map((insight: any, idx: number) => (
+                                    ) : (hrInsights.insights || []).map((insight: any, idx: number) => (
                                         <div key={idx} className={`p-6 flex gap-4 ${insight.severity === 'critical' ? 'bg-danger-50/50' : ''}`}>
                                             <div className="text-2xl">{insight.icon}</div>
                                             <div>
@@ -1307,10 +1305,10 @@ const HRManagementContent = () => {
                                     <div key={review.id} className="p-6 flex justify-between items-start hover:bg-secondary-50 transition-colors">
                                         <div>
                                             <div className="flex items-center gap-2 mb-1">
-                                                <p className="font-bold text-secondary-900">{review.employee.user.email}</p>
+                                                <p className="font-bold text-secondary-900">{review.employee?.user?.email || 'Unknown Staff'}</p>
                                                 <span className="px-2 py-0.5 bg-warning-100 text-warning-700 text-[10px] font-black rounded">{review.rating} STARS</span>
                                             </div>
-                                            <p className="text-sm text-secondary-500">{review.feedback}</p>
+                                            <p className="text-sm text-secondary-500">{review.feedback || 'No feedback provided'}</p>
                                         </div>
                                         <p className="text-[10px] font-bold text-secondary-400 uppercase"><FormattedDate date={review.date} /></p>
                                     </div>

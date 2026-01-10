@@ -867,12 +867,12 @@ export default function StaffPortalPage() {
                                                     <p className="text-xs font-bold text-secondary-400 uppercase tracking-widest">Reviewed on <FormattedDate date={review.date} /></p>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className="text-sm font-bold text-secondary-900">{review.reviewer.email}</p>
-                                                    <p className="text-[10px] text-secondary-400 font-bold uppercase">{review.reviewer.role.replace('_', ' ')}</p>
+                                                    <p className="text-sm font-bold text-secondary-900">{review.reviewer?.email || 'Unknown Reviewer'}</p>
+                                                    <p className="text-[10px] text-secondary-400 font-bold uppercase">{review.reviewer?.role?.replace('_', ' ') || 'MANAGER'}</p>
                                                 </div>
                                             </div>
                                             <p className="text-lg text-secondary-700 leading-relaxed font-medium bg-primary-50/30 p-6 rounded-2xl border border-primary-100/50 italic">
-                                                &quot;{review.feedback}&quot;
+                                                &quot;{review.feedback || 'No feedback provided'}&quot;
                                             </p>
                                         </div>
                                     ))}

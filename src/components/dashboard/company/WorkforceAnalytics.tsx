@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
     ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid,
     BarChart, Bar, Legend
