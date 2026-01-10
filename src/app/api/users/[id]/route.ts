@@ -51,7 +51,7 @@ export const PATCH = authorizedRoute(
         try {
             const { id } = await params;
             const body = await req.json();
-            const { role, name, isActive, password, companyId, companyIds, email } = body;
+            const { role, name, isActive, password, companyId, companyIds, email, departmentId } = body;
 
             const existingUser = await prisma.user.findUnique({ where: { id } });
             if (!existingUser) return createErrorResponse('User not found', 404);
@@ -70,6 +70,7 @@ export const PATCH = authorizedRoute(
             if (role) updateData.role = role;
             if (name) updateData.name = name;
             if (isActive !== undefined) updateData.isActive = isActive;
+            if (departmentId !== undefined) updateData.departmentId = departmentId;
 
             // SUPER_ADMIN can update email
             if (email && user.role === 'SUPER_ADMIN') {

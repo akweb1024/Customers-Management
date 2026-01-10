@@ -1,20 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import FormattedDate from '@/components/common/FormattedDate';
 import DataTransferActions from '@/components/dashboard/DataTransferActions';
 
-export default function UsersPage() {
+function UsersContent() {
+    const searchParams = useSearchParams();
     const [users, setUsers] = useState<any[]>([]);
     const [companies, setCompanies] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [userRole, setUserRole] = useState('CUSTOMER');
     const [showNewModal, setShowNewModal] = useState(false);
     const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
     const [pagination, setPagination] = useState({
         page: 1,
         limit: 10,
@@ -334,7 +336,7 @@ export default function UsersPage() {
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary-400">🔍</span>
                         <input
                             type="text"
-                            placeholder="Search users by email or role..."
+                            placeholder="Search users by name, email or role..."
                             className="input pl-10 w-full"
                             value={searchTerm}
                             onChange={(e) => {
@@ -670,5 +672,19 @@ export default function UsersPage() {
                 </div>
             )}
         </DashboardLayout>
+    );
+}
+
+export default function UsersPage() {
+    return (
+        <Suspense fallback={
+            <DashboardLayout userRole="CUSTOMER">
+                <div className="flex items-center justify-center h-64">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                </div>
+            </DashboardLayout>
+        }>
+            <UsersContent />
+        </Suspense>
     );
 }

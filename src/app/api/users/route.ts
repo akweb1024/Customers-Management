@@ -32,10 +32,11 @@ export const GET = authorizedRoute(
             }
 
             if (search) {
-                const searchClause = [
+                const searchClause: any[] = [
                     { email: { contains: search, mode: 'insensitive' } },
-                    { role: { contains: search, mode: 'insensitive' } }
+                    { name: { contains: search, mode: 'insensitive' } }
                 ];
+
                 if (where.OR) {
                     where.AND = [
                         { OR: where.OR },
@@ -59,6 +60,16 @@ export const GET = authorizedRoute(
                                 id: true,
                                 email: true,
                                 role: true
+                            }
+                        },
+                        department: {
+                            select: {
+                                name: true
+                            }
+                        },
+                        employeeProfile: {
+                            select: {
+                                designation: true
                             }
                         },
                         _count: {
@@ -98,7 +109,7 @@ export const POST = authorizedRoute(
     async (req: NextRequest, user) => {
         try {
             const body = await req.json();
-            const { email, password, role, managerId, companyId, companyIds } = body;
+            const { email, password, role, managerId, companyId, companyIds, departmentId } = body;
 
             if (!email || !password || !role) {
                 return createErrorResponse('Missing required fields', 400);
@@ -121,6 +132,7 @@ export const POST = authorizedRoute(
                     role,
                     isActive: true,
                     companyId: targetCompanyId,
+                    departmentId, // Add departmentId
                     managerId: managerId || (['MANAGER', 'TEAM_LEADER'].includes(user.role) ? user.id : undefined),
                     companies: companyIds ? {
                         connect: companyIds.map((id: string) => ({ id }))

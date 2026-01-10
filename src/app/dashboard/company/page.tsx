@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import Link from 'next/link';
 
 export default function CompanyPage() {
     const [company, setCompany] = useState<any>(null);
@@ -412,7 +413,12 @@ export default function CompanyPage() {
                                                     <p className="text-sm text-secondary-600">{staff.department?.name || 'Unassigned'}</p>
                                                 </td>
                                                 <td className="py-4 text-right">
-                                                    <button className="text-primary-600 hover:text-primary-800 font-medium text-sm">View Details</button>
+                                                    <Link
+                                                        href={`/dashboard/users?search=${encodeURIComponent(staff.email)}`}
+                                                        className="text-primary-600 hover:text-primary-800 font-medium text-sm"
+                                                    >
+                                                        View Details
+                                                    </Link>
                                                 </td>
                                             </tr>
                                         )) : (

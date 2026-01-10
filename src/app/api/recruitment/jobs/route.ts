@@ -64,8 +64,14 @@ export const POST = authorizedRoute(
                     salaryRange: jobData.salaryRange,
                     type: jobData.type,
                     status: 'OPEN',
-                    departmentId: jobData.departmentId
-                    // Exam creation simplified/deferred for now
+                    departmentId: jobData.departmentId,
+                    exam: examQuestions && examQuestions.length > 0 ? {
+                        create: {
+                            questions: examQuestions,
+                            passPercentage: 60, // Default pass percentage
+                            timeLimit: 45 // Default time limit
+                        }
+                    } : undefined
                 }
             });
 
@@ -87,12 +93,26 @@ export const PATCH = authorizedRoute(
                 return createErrorResponse(validation.error);
             }
 
-            const { id, ...updates } = validation.data;
+            const { id, examQuestions, ...updates } = validation.data;
             if (!id) return createErrorResponse('ID is required', 400);
 
             const job = await prisma.jobPosting.update({
                 where: { id },
-                data: updates
+                data: {
+                    ...updates,
+                    exam: examQuestions ? {
+                        upsert: {
+                            create: {
+                                questions: examQuestions,
+                                passPercentage: 60,
+                                timeLimit: 45
+                            },
+                            update: {
+                                questions: examQuestions
+                            }
+                        }
+                    } : undefined
+                }
             });
 
             return NextResponse.json(job);

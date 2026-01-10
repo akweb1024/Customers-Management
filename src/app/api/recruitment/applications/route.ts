@@ -21,12 +21,11 @@ export const POST = authorizedRoute(
 
             const application = await prisma.jobApplication.create({
                 data: {
-                    jobId,
-                    candidateName,
-                    candidateEmail,
-                    candidatePhone,
+                    jobPostingId: jobId,
+                    applicantName: candidateName,
+                    applicantEmail: candidateEmail,
+                    applicantPhone: candidatePhone,
                     resumeUrl,
-                    status: 'APPLIED',
                     status: 'APPLIED'
                 }
             });
@@ -52,7 +51,7 @@ export const GET = authorizedRoute(
                 where.jobPosting = { companyId: user.companyId };
             }
 
-            if (jobId) where.jobId = jobId;
+            if (jobId) where.jobPostingId = jobId;
 
             const applications = await prisma.jobApplication.findMany({
                 where,
