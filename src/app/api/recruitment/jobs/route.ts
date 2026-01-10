@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
             where,
             include: {
                 company: { select: { name: true } },
+                department: { select: { name: true } },
                 _count: { select: { applications: true } }
             },
             orderBy: { createdAt: 'desc' }
@@ -56,12 +57,15 @@ export const POST = authorizedRoute(
             const job = await prisma.jobPosting.create({
                 data: {
                     companyId: finalCompanyId,
-                    ...jobData,
-                    exam: {
-                        create: {
-                            questions: examQuestions || [],
-                        }
-                    }
+                    title: jobData.title,
+                    description: jobData.description,
+                    requirements: jobData.requirements,
+                    location: jobData.location,
+                    salaryRange: jobData.salaryRange,
+                    type: jobData.type,
+                    status: 'OPEN',
+                    departmentId: jobData.departmentId
+                    // Exam creation simplified/deferred for now
                 }
             });
 

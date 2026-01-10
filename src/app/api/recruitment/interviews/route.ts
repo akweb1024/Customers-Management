@@ -4,19 +4,29 @@ import { authorizedRoute } from '@/lib/middleware-auth';
 import { createErrorResponse } from '@/lib/api-utils';
 
 export const GET = authorizedRoute(
-    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    ['SUPER_ADMIN', 'ADMIN', 'HR_MANAGER', 'MANAGER'],
     async (req: NextRequest, user) => {
         try {
-            // Fetch potential interviewers (Admins, Super Admins, Managers)
-            const interviewers = await prisma.user.findMany({
-                where: {
-                    role: { in: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
-                    companyId: user.companyId // Same company
+            const { searchParams } = new URL(req.url);
+            const applicationId = searchParams.get('applicationId');
+
+            const where: any = {};
+            if (applicationId) where.applicationId = applicationId;
+
+            // To filter by company, we need to join the application -> job -> company
+            // Or use the interviewer's company if they are internal
+            where.interviewer = { companyId: user.companyId };
+
+            const interviews = await prisma.interview.findMany({
+                where,
+                include: {
+                    application: { select: { candidateName: true, job: { select: { title: true } } } },
+                    interviewer: { select: { name: true } }
                 },
-                select: { id: true, email: true, role: true }
+                orderBy: { scheduledAt: 'asc' }
             });
 
-            return NextResponse.json(interviewers);
+            return NextResponse.json(interviews);
         } catch (error) {
             return createErrorResponse(error);
         }
@@ -24,47 +34,59 @@ export const GET = authorizedRoute(
 );
 
 export const POST = authorizedRoute(
-    ['SUPER_ADMIN', 'ADMIN', 'MANAGER'],
+    ['SUPER_ADMIN', 'ADMIN', 'HR_MANAGER', 'MANAGER'],
     async (req: NextRequest, user) => {
         try {
             const body = await req.json();
-            const { applicationId, level, type, scheduledAt, interviewerId, result, feedback } = body;
+            const { applicationId, interviewerId, scheduledAt, duration, type, meetingLink, location } = body;
 
-            let interview;
-            if (type === 'SCHEDULE') {
-                interview = await prisma.recruitmentInterview.upsert({
-                    where: { applicationId_level: { applicationId, level } },
-                    update: { scheduledAt: new Date(scheduledAt), interviewerId, status: 'SCHEDULED' },
-                    create: { applicationId, level, scheduledAt: new Date(scheduledAt), interviewerId, status: 'SCHEDULED' }
-                });
-
-                // Set application status to currently interviewing level
-                await prisma.jobApplication.update({
-                    where: { id: applicationId },
-                    data: { status: `INTERVIEW_L${level}` }
-                });
-            } else {
-                // COMPLETED
-                const { score } = body;
-                interview = await prisma.recruitmentInterview.update({
-                    where: { applicationId_level: { applicationId, level } },
-                    data: { result, feedback, score: score ? parseInt(score) : null, status: 'COMPLETED' }
-                });
-
-                // Update application status
-                let nextStatus = `INTERVIEW_L${level}`;
-                if (result === 'PASSED') {
-                    if (level === 3) nextStatus = 'SELECTED';
-                    else nextStatus = `INTERVIEW_L${level + 1}`;
-                } else if (result === 'FAILED') {
-                    nextStatus = 'REJECTED';
-                }
-
-                await prisma.jobApplication.update({
-                    where: { id: applicationId },
-                    data: { status: nextStatus }
-                });
+            if (!applicationId || !interviewerId || !scheduledAt) {
+                return createErrorResponse('Missing required fields', 400);
             }
+
+            const interview = await prisma.interview.create({
+                data: {
+                    applicationId,
+                    interviewerId,
+                    scheduledAt: new Date(scheduledAt),
+                    duration: duration || 30,
+                    type: type || 'VIRTUAL',
+                    meetingLink,
+                    location,
+                    status: 'SCHEDULED'
+                }
+            });
+
+            // Update application status
+            await prisma.jobApplication.update({
+                where: { id: applicationId },
+                data: { status: 'INTERVIEW', currentStage: 'ROUND_1' }
+            });
+
+            return NextResponse.json(interview);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
+    }
+);
+
+export const PATCH = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'HR_MANAGER', 'MANAGER'],
+    async (req: NextRequest, user) => {
+        try {
+            const body = await req.json();
+            const { id, status, feedback, rating } = body;
+
+            if (!id) return createErrorResponse('Interview ID required', 400);
+
+            const interview = await prisma.interview.update({
+                where: { id },
+                data: {
+                    status,
+                    feedback,
+                    rating
+                }
+            });
 
             return NextResponse.json(interview);
         } catch (error) {

@@ -10,11 +10,15 @@ A comprehensive web application for managing journal subscriptions, customers, i
 - **Data Portability**: Bulk CSV Import/Export for Institutions, Customers, Journals, and Subscriptions.
 - **Dynamic Assignments**: Multi-level executive tracking (Primary, Secondary, and Support roles).
 
+
 ### 👥 HR & Staff Management
 - **Complete Portal**: Employee self-service for attendance, work reports, and leave management.
-- **Recruitment Pipeline**: End-to-end management from job posting to onboard exams and interview logs.
+- **Recruitment (ATS)**: Full pipeline management (Kanban), job postings, and interview scheduling.
 - **Performance & Growth**: Grade tracking, promotion history, and automated productivity analysis.
-- **Financial Details**: Automated salary slips and commission (10% agency) tracking.
+- **Financial Intelligence**:
+  - **Payroll**: Automated salary slips, arrears handling, and tax compliance (TDS, PF, ESIC).
+  - **Full & Final**: Automated exit settlement workflows.
+  - **Budgets**: Departmental budget allocation and tracking.
 
 ### 🔐 Security & Auth
 - **NextAuth v5**: Secure session management with HTTP-only cookies and RBAC.

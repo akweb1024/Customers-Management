@@ -54,3 +54,18 @@ export function createErrorResponse(
 export function createSuccessResponse<T>(data: T, status: number = 200): NextResponse {
     return NextResponse.json(data, { status });
 }
+
+export async function fetchJson(url: string, method: string = 'GET', body?: any) {
+    const res = await fetch(url, {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'API request failed');
+    }
+    return res.json();
+}

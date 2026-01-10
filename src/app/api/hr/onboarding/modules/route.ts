@@ -64,3 +64,58 @@ export const POST = authorizedRoute(
         }
     }
 );
+
+// PATCH: Update an onboarding module
+export const PATCH = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'HR_MANAGER'],
+    async (req: NextRequest, user) => {
+        try {
+            const body = await req.json();
+            const { id, questions, ...updateData } = body;
+
+            if (!id) return createErrorResponse('ID is required', 400);
+
+            // Update module
+            const updatedModule = await prisma.onboardingModule.update({
+                where: { id },
+                data: {
+                    ...updateData,
+                    questions: questions ? {
+                        deleteMany: {},
+                        create: questions.map((q: any) => ({
+                            question: q.question,
+                            options: q.options,
+                            correctAnswer: parseInt(q.correctAnswer)
+                        }))
+                    } : undefined
+                },
+                include: { questions: true }
+            });
+
+            return NextResponse.json(updatedModule);
+        } catch (error) {
+            return createErrorResponse(error);
+        }
+    }
+);
+
+// DELETE: Remove an onboarding module
+export const DELETE = authorizedRoute(
+    ['SUPER_ADMIN', 'ADMIN', 'HR_MANAGER'],
+    async (req: NextRequest, user) => {
+        try {
+            const { searchParams } = new URL(req.url);
+            const id = searchParams.get('id');
+
+            if (!id) return createErrorResponse('ID is required', 400);
+
+            await prisma.onboardingModule.delete({
+                where: { id }
+            });
+
+            return NextResponse.json({ message: 'Module deleted successfully' });
+        } catch (error) {
+            return createErrorResponse(error);
+        }
+    }
+);

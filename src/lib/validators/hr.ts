@@ -139,6 +139,7 @@ export const jobPostingSchema = z.object({
     salaryRange: z.string().optional(),
     type: JobType.default("FULL_TIME"),
     status: JobStatus.default("OPEN"),
+    departmentId: z.string().optional(),
     examQuestions: z.array(z.any()).optional(),
 });
 

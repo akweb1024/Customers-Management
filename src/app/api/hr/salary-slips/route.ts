@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { authorizedRoute } from '@/lib/middleware-auth';
 import { createErrorResponse } from '@/lib/api-utils';
 import { getDownlineUserIds } from '@/lib/hierarchy';
+import { PayrollCalculator } from '@/lib/payroll';
 
 export const GET = authorizedRoute(
     [],
@@ -97,17 +98,17 @@ export const POST = authorizedRoute(
 
                 if (['MANAGER', 'TEAM_LEADER'].includes(user.role)) {
                     const subIds = await getDownlineUserIds(user.id, user.companyId || undefined);
-                    where.id = { in: subIds };
+                    where.userId = { in: subIds };
                 }
 
                 const employees = await prisma.employeeProfile.findMany({
-                    where: {
-                        user: where
-                    },
+                    where,
                     include: {
                         salaryStructure: true
                     }
                 });
+
+                const statutoryConfig = await PayrollCalculator.getStatutoryConfig(user.companyId!);
 
                 let generatedCount = 0;
                 for (const emp of employees) {
@@ -116,14 +117,8 @@ export const POST = authorizedRoute(
                     });
                     if (existing) continue;
 
-                    let grossSalary = emp.baseSalary || 0;
-                    if (emp.salaryStructure) grossSalary = emp.salaryStructure.grossSalary;
-
-                    if (grossSalary <= 0) continue;
-
-                    const totalDeductions = 0;
-                    let advanceDeduction = 0;
-                    let lwpDeduction = 0;
+                    const struct = emp.salaryStructure;
+                    if (!struct || struct.grossSalary <= 0) continue;
 
                     // 1. Check for Advances / EMIs
                     const activeEmi = await prisma.advanceEMI.findFirst({
@@ -134,10 +129,6 @@ export const POST = authorizedRoute(
                             status: 'PENDING'
                         }
                     });
-
-                    if (activeEmi) {
-                        advanceDeduction = activeEmi.amount;
-                    }
 
                     // 2. Compute Leaves / LWP
                     const startDate = new Date(y, m - 1, 1);
@@ -161,36 +152,60 @@ export const POST = authorizedRoute(
                         leaveTakenThisMonth += diff;
                     });
 
-                    // Logic: Bal leave 0 default, so anything taken is usually deduction unless bal > 0
                     const availableBal = emp.leaveBalance;
-                    let overheadDays = 0;
+                    const overheadDays = Math.max(0, leaveTakenThisMonth - availableBal);
 
-                    if (leaveTakenThisMonth > availableBal) {
-                        overheadDays = leaveTakenThisMonth - availableBal;
-                    }
-
-                    if (overheadDays > 0) {
-                        const dailyRate = grossSalary / daysInMonth;
-                        lwpDeduction = dailyRate * overheadDays;
-                    }
-
-                    // Update employee leave balance for next month if any left, or set to 0
+                    // Update employee leave balance
                     const newBal = Math.max(0, availableBal - leaveTakenThisMonth);
                     await prisma.employeeProfile.update({
                         where: { id: emp.id },
                         data: { leaveBalance: newBal }
                     });
 
-                    const finalPayable = grossSalary - advanceDeduction - lwpDeduction;
+                    // 3. New Advanced Payroll Calculation
+                    const breakdown = PayrollCalculator.calculate({
+                        basicSalary: struct.basicSalary,
+                        hra: struct.hra,
+                        conveyance: struct.conveyance,
+                        medical: struct.medical,
+                        specialAllowance: struct.specialAllowance,
+                        otherAllowances: struct.otherAllowances,
+                        lwpDays: overheadDays,
+                        daysInMonth
+                    }, statutoryConfig);
+
+                    const advanceDeduction = activeEmi ? activeEmi.amount : 0;
+                    const finalPayable = Math.max(0, breakdown.netPayable - advanceDeduction);
 
                     const slip = await prisma.salarySlip.create({
                         data: {
                             employeeId: emp.id,
                             month: m,
                             year: y,
-                            amountPaid: parseFloat(Math.max(0, finalPayable).toFixed(2)),
+                            amountPaid: parseFloat(finalPayable.toFixed(2)),
                             advanceDeduction,
-                            lwpDeduction,
+                            lwpDeduction: breakdown.deductions.lwpDeduction,
+
+                            // Breakdown storage
+                            basicSalary: breakdown.earnings.basic,
+                            hra: breakdown.earnings.hra,
+                            conveyance: breakdown.earnings.conveyance,
+                            medical: breakdown.earnings.medical,
+                            specialAllowance: breakdown.earnings.specialAllowance,
+                            otherAllowances: breakdown.earnings.otherAllowances,
+                            grossSalary: breakdown.earnings.gross,
+
+                            pfEmployee: breakdown.deductions.pfEmployee,
+                            esicEmployee: breakdown.deductions.esicEmployee,
+                            professionalTax: breakdown.deductions.professionalTax,
+                            tds: breakdown.deductions.tds,
+                            totalDeductions: breakdown.deductions.total + advanceDeduction,
+
+                            pfEmployer: breakdown.employerContribution.pfEmployer,
+                            esicEmployer: breakdown.employerContribution.esicEmployer,
+                            ctc: breakdown.costToCompany,
+                            arrears: breakdown.arrears || 0,
+
                             status: 'GENERATED',
                             companyId: user.companyId
                         }
@@ -207,7 +222,6 @@ export const POST = authorizedRoute(
                             }
                         });
 
-                        // Check if advance is fully paid
                         const advance = await prisma.salaryAdvance.findUnique({
                             where: { id: activeEmi.advanceId },
                             include: { emis: true }
@@ -215,24 +229,20 @@ export const POST = authorizedRoute(
 
                         if (advance) {
                             const pendingEmis = advance.emis.filter(e => e.status === 'PENDING').length;
-                            if (pendingEmis === 0) {
-                                await prisma.salaryAdvance.update({
-                                    where: { id: advance.id },
-                                    data: { status: 'COMPLETED', paidEmis: advance.totalEmis }
-                                });
-                            } else {
-                                await prisma.salaryAdvance.update({
-                                    where: { id: advance.id },
-                                    data: { paidEmis: advance.totalEmis - pendingEmis }
-                                });
-                            }
+                            await prisma.salaryAdvance.update({
+                                where: { id: advance.id },
+                                data: {
+                                    status: pendingEmis === 0 ? 'COMPLETED' : 'APPROVED',
+                                    paidEmis: advance.totalEmis - pendingEmis
+                                }
+                            });
                         }
                     }
 
                     generatedCount++;
                 }
 
-                return NextResponse.json({ message: `Generated ${generatedCount} salary slips with automated deductions`, count: generatedCount });
+                return NextResponse.json({ message: `Automated Statutory Payroll run complete for ${generatedCount} staff.`, count: generatedCount });
             }
 
             // Single Creation

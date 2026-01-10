@@ -59,6 +59,15 @@ model Company {
   courses            Course[]
   workPlans          WorkPlan[]
 
+  // Phase 1 HRMS Upgrade
+  statutoryConfig    StatutoryConfig?
+
+  // Phase 2 HRMS Upgrade
+  shifts             Shift[]
+  shiftRosters       ShiftRoster[]
+  employeeKpis       EmployeeKPI[]
+  performanceInsights PerformanceInsight[]
+
   designations       Designation[]
   onboardingModules  OnboardingModule[]
   documentTemplates  DocumentTemplate[]
@@ -66,6 +75,7 @@ model Company {
   itTickets          ITSupportTicket[]
   institutions       Institution[]
   financialRecords   FinancialRecord[]
+  departmentBudgets  DepartmentBudget[]
   salaryAdvances     SalaryAdvance[]
   leaveLedgers       LeaveLedger[]
 
@@ -93,6 +103,9 @@ model Department {
   users   User[]  @relation("DepartmentMembers")
   onboardingModules OnboardingModule[]
   designations      Designation[]
+  budgets           DepartmentBudget[]
+  jobPostings       JobPosting[]
+  jobApplications   JobApplication[]
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -137,7 +150,7 @@ model User {
   employeeProfile    EmployeeProfile?
   performanceReviews PerformanceReview[]    @relation("Reviewer")
   approvedLeaves     LeaveRequest[]         @relation("LeaveApprover")
-  interviews         RecruitmentInterview[] @relation("Interviewer")
+  interviewsConducted RecruitmentInterview[] @relation("RecruitmentInterviewer")
 
   // Chat
   chatParticipants ChatParticipant[]
@@ -145,9 +158,9 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  financeCreated FinancialRecord[] @relation("FinanceCreator")
+  createdFinanceRecords FinancialRecord[] @relation("FinanceCreator")
 
-  // Relations
+  // Messaging & Notifications
   customerProfile       CustomerProfile?
   assignedSubscriptions Subscription[]       @relation("AssignedSalesExecutive")
   assignedCustomers     CustomerProfile[]    @relation("AssignedCustomers")
@@ -1047,6 +1060,14 @@ model EmployeeProfile {
   onboardingProgress OnboardingProgress[]
   digitalDocuments   DigitalDocument[]
   
+  // Phase 1 HRMS Upgrade
+  taxDeclarations    TaxDeclaration[]
+  
+  // Phase 2 HRMS Upgrade
+  shiftRosters       ShiftRoster[]
+  kpis               EmployeeKPI[]
+  performanceInsights PerformanceInsight[]
+  
   // HR History
   incrementHistory  SalaryIncrementRecord[]
   hrComments        EmployeeComment[]
@@ -1182,6 +1203,12 @@ model Attendance {
   companyId String?
   company   Company? @relation(fields: [companyId], references: [id])
 
+  // Phase 2 HRMS Upgrade
+  shiftId      String?
+  shift        Shift?    @relation(fields: [shiftId], references: [id])
+  lateMinutes  Int       @default(0)
+  otMinutes    Int       @default(0)
+
   @@unique([employeeId, date])
   @@index([companyId])
 }
@@ -1299,6 +1326,170 @@ model SalarySlip {
   
   advanceEmi       AdvanceEMI?
 
+  // Extended Breakdown for Compliance
+  basicSalary       Float   @default(0)
+  hra               Float   @default(0)
+  conveyance        Float   @default(0)
+  medical           Float   @default(0)
+  specialAllowance  Float   @default(0)
+  otherAllowances   Float   @default(0)
+  
+  grossSalary       Float   @default(0)
+
+  pfEmployee        Float   @default(0)
+  esicEmployee      Float   @default(0)
+  professionalTax   Float   @default(0)
+  tds               Float   @default(0)
+  totalDeductions   Float   @default(0)
+
+  pfEmployer        Float   @default(0)
+  esicEmployer      Float   @default(0)
+  ctc               Float   @default(0) // Month's total CTC contribution
+  
+  arrears           Float   @default(0)
+  isFinalSettlement Boolean @default(false)
+  notes             String?
+
+  arrearRecords     ArrearRecord[]
+
+  @@index([companyId])
+}
+
+model ArrearRecord {
+  id           String   @id @default(uuid())
+  salarySlipId String
+  salarySlip   SalarySlip @relation(fields: [salarySlipId], references: [id], onDelete: Cascade)
+  
+  type         String   // INCREMENT_ARREARS, LATE_JOINING, REVISION
+  amount       Float
+  description  String?
+  
+  createdAt    DateTime @default(now())
+
+  @@index([salarySlipId])
+}
+
+model DepartmentBudget {
+  id           String   @id @default(uuid())
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  
+  companyId    String
+  company      Company    @relation(fields: [companyId], references: [id])
+
+  fiscalYear   Int
+  month        Int?       // Optional for annual vs monthly budgeting
+  
+  allocated    Float
+  spent        Float      @default(0)
+  
+  category     String     @default("SALARY") // SALARY, TRAINING, OPERATIONS
+  
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([departmentId])
+  @@index([companyId])
+}
+
+model StatutoryConfig {
+  id                String   @id @default(uuid())
+  companyId         String   @unique
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // PF Settings
+  pfEmployeeRate    Float    @default(12.0)
+  pfEmployerRate    Float    @default(12.0)
+  pfCeilingAmount   Float    @default(15000.0)
+  pfAdminCharges    Float    @default(0.5)
+
+  // ESIC Settings
+  esicEmployeeRate  Float    @default(0.75)
+  esicEmployerRate  Float    @default(3.25)
+  esicLimitAmount   Float    @default(21000.0)
+
+  // Professional Tax Settings
+  ptEnabled         Boolean  @default(true)
+  state             String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model TaxDeclaration {
+  id                String          @id @default(uuid())
+  employeeId        String
+  employee          EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  fiscalYear        String          // e.g., "2023-24"
+  regime            String          @default("NEW") // OLD, NEW
+
+  // Standard Sections
+  section80C        Float           @default(0)
+  section80D        Float           @default(0)
+  nps               Float           @default(0)
+  hraRentPaid       Float           @default(0)
+  homeLoanInterest  Float           @default(0)
+  otherIncome       Float           @default(0)
+
+  status            String          @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED
+  adminComment      String?
+  
+  proofs            DeclarationProof[]
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([employeeId])
+}
+
+model DeclarationProof {
+  id                  String         @id @default(uuid())
+  taxDeclarationId    String
+  taxDeclaration      TaxDeclaration @relation(fields: [taxDeclarationId], references: [id], onDelete: Cascade)
+  
+  category            String         // 80C, 80D, HRA, etc.
+  fileUrl             String
+  fileName            String
+  amount              Float
+  status              String         @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  createdAt           DateTime       @default(now())
+}
+
+model Shift {
+  id              String   @id @default(uuid())
+  name            String
+  startTime       String   // e.g., "09:00"
+  endTime         String   // e.g., "18:00"
+  gracePeriod     Int      @default(15) // Minutes
+  isNightShift    Boolean  @default(false)
+  
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  attendances     Attendance[]
+  rosters         ShiftRoster[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model ShiftRoster {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shiftId     String
+  shift       Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  date        DateTime // For fixed date shift assignment
+  
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+
+  @@unique([employeeId, date])
   @@index([companyId])
 }
 
@@ -1358,6 +1549,45 @@ model PerformanceReview {
 
   createdAt DateTime @default(now())
 
+  @@index([companyId])
+}
+
+model EmployeeKPI {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  title       String
+  target      Float
+  current     Float    @default(0)
+  unit        String   // e.g. "INR", "Units", "%"
+  period      String   // "JAN-2024", "Q1-2024" etc.
+  
+  category    String   @default("GENERAL") // SALES, SUPPORT, TECHNICAL, etc.
+  
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([companyId])
+}
+
+model PerformanceInsight {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  content     String   // AI generated analysis
+  type        String   // STRENGTH, WEAKNESS, SUGGESTION
+  
+  date        DateTime @default(now())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  @@index([employeeId])
   @@index([companyId])
 }
 
@@ -1535,6 +1765,9 @@ model JobPosting {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
 }
 
 model JobApplication {
@@ -1557,6 +1790,9 @@ model JobApplication {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
 }
 
 model RecruitmentExam {
@@ -1593,14 +1829,21 @@ model RecruitmentInterview {
   application   JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   level         Int // 1, 2, or 3
-  interviewerId String?
-  interviewer   User?   @relation("Interviewer", fields: [interviewerId], references: [id])
-
-  scheduledAt DateTime?
-  status      String    @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELLED
-  result      String    @default("PENDING") // PENDING, PASSED, FAILED
-  score       Int?      // Rating 1-10
-  feedback    String?
+  interviewerId String
+  interviewer   User     @relation("RecruitmentInterviewer", fields: [interviewerId], references: [id])
+  
+  scheduledAt   DateTime
+  duration      Int      @default(30) // Minutes
+  type          String   @default("VIRTUAL") // VIRTUAL, IN_PERSON, PHONE
+  
+  meetingLink   String?
+  location      String?
+  
+  status        String   @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELLED, NO_SHOW
+  
+  feedback      String?  @db.Text
+  rating        Int?     // 1-10
+  result        String   @default("PENDING") // PENDING, PASSED, FAILED
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2064,3 +2307,5 @@ enum FinancialType {
   REVENUE
   EXPENSE
 }
+
+

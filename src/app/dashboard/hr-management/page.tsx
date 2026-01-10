@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import FormattedDate from '@/components/common/FormattedDate';
-import OnboardingManager from '@/components/dashboard/OnboardingManager';
+
 import DocumentManager from '@/components/dashboard/DocumentManager';
 import EmployeeList from '@/components/dashboard/hr/EmployeeList';
 import EmployeeModal from '@/components/dashboard/hr/EmployeeModal';
@@ -14,6 +14,16 @@ import JobPostingModal from '@/components/dashboard/hr/JobPostingModal';
 import PerformanceReviewModal from '@/components/dashboard/hr/PerformanceReviewModal';
 import AttendanceModal from '@/components/dashboard/hr/AttendanceModal';
 import DepartmentManager from '@/components/dashboard/hr/DepartmentManager';
+import StatutorySettings from '@/components/dashboard/hr/StatutorySettings';
+import SalaryStructureManager from '@/components/dashboard/hr/SalaryStructureManager';
+import ShiftManager from '@/components/dashboard/hr/ShiftManager';
+import ShiftRoster from '@/components/dashboard/hr/ShiftRoster';
+import OnboardingManager from '@/components/dashboard/hr/OnboardingManager';
+import DocumentTemplateManager from '@/components/dashboard/hr/DocumentTemplateManager';
+import PerformanceAnalytics from '@/components/dashboard/hr/PerformanceAnalytics';
+import BudgetManager from '@/components/dashboard/hr/BudgetManager';
+import FinalSettlementManager from '@/components/dashboard/hr/FinalSettlementManager';
+import RecruitmentDashboard from '@/components/dashboard/hr/RecruitmentDashboard';
 import { Briefcase, Info, Target, TrendingUp, Award, GraduationCap, Edit, Trash2 } from 'lucide-react';
 import {
     useEmployees, useHolidays, useDesignations, useJobs, useApplications,
@@ -467,7 +477,7 @@ const HRManagementContent = () => {
                 </div>
 
                 <div className="flex gap-2 bg-white p-2 rounded-2xl shadow-sm border border-secondary-100 w-fit overflow-x-auto max-w-full">
-                    {['employees', 'departments', 'documents', 'recruitment', 'onboarding', 'map', 'reports', 'leaves', 'leave-ledger', 'attendance', 'payroll', 'advances', 'analytics', 'holidays', 'productivity'].map(tab => (
+                    {['employees', 'departments', 'documents', 'document-templates', 'recruitment', 'onboarding', 'map', 'reports', 'leaves', 'leave-ledger', 'attendance', 'payroll', 'salary-structures', 'shifts', 'roster', 'statutory', 'advances', 'analytics', 'budgets', 'final-settlement', 'holidays', 'productivity'].map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -588,6 +598,46 @@ const HRManagementContent = () => {
 
                 {activeTab === 'departments' && (
                     <DepartmentManager userRole={userRole} />
+                )}
+
+                {activeTab === 'statutory' && (
+                    <StatutorySettings />
+                )}
+
+                {activeTab === 'salary-structures' && (
+                    <SalaryStructureManager />
+                )}
+
+                {activeTab === 'shifts' && (
+                    <ShiftManager />
+                )}
+
+                {activeTab === 'roster' && (
+                    <ShiftRoster />
+                )}
+
+                {activeTab === 'onboarding' && (
+                    <OnboardingManager />
+                )}
+
+                {activeTab === 'document-templates' && (
+                    <DocumentTemplateManager />
+                )}
+
+                {activeTab === 'analytics' && (
+                    <PerformanceAnalytics />
+                )}
+
+                {activeTab === 'budgets' && (
+                    <BudgetManager />
+                )}
+
+                {activeTab === 'final-settlement' && (
+                    <FinalSettlementManager />
+                )}
+
+                {activeTab === 'recruitment' && (
+                    <RecruitmentDashboard />
                 )}
 
                 {activeTab === 'reports' && (
@@ -965,8 +1015,15 @@ const HRManagementContent = () => {
                                             {(record.employee.user.name?.[0] || record.employee.user.email[0]).toUpperCase()}
                                         </div>
                                         <div>
-                                            <p className="font-bold text-secondary-900">{record.employee.user.name || record.employee.user.email}</p>
-                                            <p className="text-[10px] font-bold text-secondary-400 uppercase"><FormattedDate date={record.date} /></p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-bold text-secondary-900">{record.employee.user.name || record.employee.user.email}</p>
+                                                {record.shift && <span className="px-1.5 py-0.5 bg-secondary-100 text-secondary-600 rounded text-[8px] font-black uppercase">{record.shift.name}</span>}
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <p className="text-[10px] font-bold text-secondary-400 uppercase"><FormattedDate date={record.date} /></p>
+                                                {record.lateMinutes > 0 && <span className="text-[9px] font-black text-rose-500 uppercase tracking-tighter">LATE {record.lateMinutes}m</span>}
+                                                {record.otMinutes > 0 && <span className="text-[9px] font-black text-indigo-500 uppercase tracking-tighter">OT {record.otMinutes}m</span>}
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="text-right">
@@ -1415,7 +1472,7 @@ const HRManagementContent = () => {
                         </div>
                     )}
 
-                {activeTab === 'onboarding' && <OnboardingManager />}
+
 
                 {/* MODALS */}
                 {showAdvanceModal && (

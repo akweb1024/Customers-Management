@@ -1,9 +1,30 @@
 # Changelog & Project History
 
-## [1.0.0] - 2026-01-08
+
+## [1.1.0] - 2026-01-10
 
 ### Summary
-The application has undergone a significant refactor to improve security, stability, and feature completeness. The core HR management system and authentication flow are now production-ready.
+Major feature expansion including Advanced Analytics, Departmental Budgeting, and a complete Recruitment (ATS) module. The system now supports the full employee lifecycle and deep financial insights.
+
+### Added
+- **Financial Intelligence**:
+  - **Automated Arrears**: `SalarySlip` now supports arrear calculations and records (`ArrearRecord`), automatically updating Net Pay and CTC.
+  - **Full & Final Settlement**: Dedicated workflow for employee exits, calculating pro-rata salary, leave encashment, and dues.
+  - **Departmental Budgeting**: New `DepartmentBudget` model and dashboard for allocating and tracking fiscal budgets vs actual spend.
+- **Recruitment & ATS**:
+  - **Job Postings**: CRUD management for job openings with departmental links.
+  - **Candidate Pipeline**: Interactive Kanban board (`ApplicantPipeline`) for visual tracking of candidates.
+  - **Interview Scheduling**: Integrated scheduling system with feedback loops and rating.
+- **Advanced Analytics**:
+  - **AI Insights**: New API endpoint providing data-driven recommendations and anomaly detection.
+  - **Performance Metrics**: Enhanced dashboard for granular performance tracking.
+
+### Changed
+- **Payroll Engine**: Refactored `PayrollCalculator` to seamlessly integrate arrears into tax and payload calculations.
+- **HR Dashboard**: Added new tabs for "Budgets", "Final Settlement", and "Recruitment" with role-based visibility.
+
+### Security
+- **Strict Role-Based Access**: Recruitment APIs restricted to HR/Admins; Budget allocation restricted to Finance/HR.
 
 ### Added
 - **NextAuth Integration**: Successfully implemented NextAuth v5 (Beta) with Credentials provider for secure, cookie-based sessions.

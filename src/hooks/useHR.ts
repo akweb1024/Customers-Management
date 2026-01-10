@@ -143,10 +143,33 @@ export const useHRInsights = (enabled: boolean = true) => {
     });
 };
 
+
+
 export const useOnboardingModules = () => {
     return useQuery<any[]>({
         queryKey: ['onboarding-modules'],
         queryFn: () => fetchJson('/api/hr/onboarding/modules'),
+    });
+};
+
+export const useOnboardingProgress = (employeeId?: string) => {
+    return useQuery<any[]>({
+        queryKey: ['onboarding-progress', employeeId],
+        queryFn: () => fetchJson(`/api/hr/onboarding/progress${employeeId ? `?employeeId=${employeeId}` : ''}`),
+    });
+};
+
+export const useDocumentTemplates = () => {
+    return useQuery<any[]>({
+        queryKey: ['document-templates'],
+        queryFn: () => fetchJson('/api/hr/document-templates'),
+    });
+};
+
+export const useDigitalDocuments = (employeeId?: string) => {
+    return useQuery<any[]>({
+        queryKey: ['digital-documents', employeeId],
+        queryFn: () => fetchJson(`/api/hr/digital-documents${employeeId ? `?employeeId=${employeeId}` : ''}`),
     });
 };
 
@@ -361,7 +384,82 @@ export const useOnboardingMutations = () => {
             queryClient.invalidateQueries({ queryKey: ['onboarding-modules'] });
         },
     });
-    return { createModule };
+    const updateModule = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/onboarding/modules', 'PATCH', data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['onboarding-modules'] });
+        },
+    });
+    const deleteModule = useMutation({
+        mutationFn: (id: string) => fetchJson(`/api/hr/onboarding/modules?id=${id}`, 'DELETE'),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['onboarding-modules'] });
+        },
+    });
+    const updateProgress = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/onboarding/progress', 'POST', data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['onboarding-progress'] });
+        },
+    });
+    return { createModule, updateModule, deleteModule, updateProgress };
+};
+
+export const useKPIs = (employeeId?: string) => {
+    return useQuery<any[]>({
+        queryKey: ['kpis', employeeId],
+        queryFn: () => fetchJson(`/api/hr/performance/kpis${employeeId ? `?employeeId=${employeeId}` : ''}`),
+    });
+};
+
+export const useKPIMutations = () => {
+    const queryClient = useQueryClient();
+    const save = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/performance/kpis', 'POST', data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kpis'] }),
+    });
+    const remove = useMutation({
+        mutationFn: (id: string) => fetchJson(`/api/hr/performance/kpis?id=${id}`, 'DELETE'),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kpis'] }),
+    });
+    return { save, remove };
+};
+
+export const usePerformanceInsights = (employeeId?: string) => {
+    return useQuery<any[]>({
+        queryKey: ['performance-insights', employeeId],
+        queryFn: () => fetchJson(`/api/hr/performance/insights${employeeId ? `?employeeId=${employeeId}` : ''}`),
+    });
+};
+
+export const useDocumentTemplateMutations = () => {
+    const queryClient = useQueryClient();
+    const create = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/document-templates', 'POST', data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['document-templates'] }),
+    });
+    const update = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/document-templates', 'PATCH', data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['document-templates'] }),
+    });
+    const remove = useMutation({
+        mutationFn: (id: string) => fetchJson(`/api/hr/document-templates?id=${id}`, 'DELETE'),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['document-templates'] }),
+    });
+    return { create, update, remove };
+};
+
+export const useDigitalDocumentMutations = () => {
+    const queryClient = useQueryClient();
+    const generate = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/digital-documents', 'POST', data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['digital-documents'] }),
+    });
+    const sign = useMutation({
+        mutationFn: (data: { id: string }) => fetchJson('/api/hr/digital-documents', 'PATCH', data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['digital-documents'] }),
+    });
+    return { generate, sign };
 };
 
 export const useDepartmentMutations = () => {
@@ -383,4 +481,118 @@ export const useDepartmentMutations = () => {
     });
 
     return { create, update, remove };
+};
+
+export const useStatutoryConfig = () => {
+    const queryClient = useQueryClient();
+    const query = useQuery<any>({
+        queryKey: ['statutory-config'],
+        queryFn: () => fetchJson('/api/hr/payroll/config'),
+    });
+
+    const update = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/payroll/config', 'POST', data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['statutory-config'] }),
+    });
+
+    return { ...query, update };
+};
+
+export const useTaxDeclarations = () => {
+    const queryClient = useQueryClient();
+    const { data, isLoading } = useQuery({
+        queryKey: ['tax-declarations'],
+        queryFn: () => fetch('/api/hr/payroll/declarations').then(res => res.json())
+    });
+
+    const submit = useMutation({
+        mutationFn: (data: any) => fetch('/api/hr/payroll/declarations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).then(res => res.json()),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tax-declarations'] })
+    });
+
+    const uploadProof = useMutation({
+        mutationFn: (formData: FormData) => fetch('/api/hr/payroll/declarations/proofs', {
+            method: 'POST',
+            body: formData // Form data handles content type
+        }).then(res => res.json()),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tax-declarations'] })
+    });
+
+    return { data, isLoading, submit, uploadProof };
+};
+
+// Phase 2: Shift & Roster Hooks
+export const useShifts = () => {
+    const queryClient = useQueryClient();
+    const { data, isLoading } = useQuery({
+        queryKey: ['hr-shifts'],
+        queryFn: () => fetch('/api/hr/shifts').then(res => res.json())
+    });
+
+    const create = useMutation({
+        mutationFn: (data: any) => fetch('/api/hr/shifts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).then(res => res.json()),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['hr-shifts'] })
+    });
+
+    const update = useMutation({
+        mutationFn: (data: any) => fetch('/api/hr/shifts', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).then(res => res.json()),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['hr-shifts'] })
+    });
+
+    const remove = useMutation({
+        mutationFn: (id: string) => fetch(`/api/hr/shifts?id=${id}`, { method: 'DELETE' }).then(res => res.json()),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['hr-shifts'] })
+    });
+
+    return { data, isLoading, create, update, remove };
+};
+
+export const useRoster = (startDate?: string, endDate?: string) => {
+    const queryClient = useQueryClient();
+    const { data, isLoading } = useQuery({
+        queryKey: ['hr-roster', startDate, endDate],
+        queryFn: () => {
+            let url = '/api/hr/shifts/roster';
+            if (startDate && endDate) url += `?startDate=${startDate}&endDate=${endDate}`;
+            return fetch(url).then(res => res.json());
+        }
+    });
+
+    const assign = useMutation({
+        mutationFn: (data: any) => fetch('/api/hr/shifts/roster', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).then(res => res.json()),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['hr-roster'] })
+    });
+
+    return { data, isLoading, assign };
+};
+
+export const useSalaryStructures = (employeeId?: string) => {
+    const queryClient = useQueryClient();
+    const query = useQuery<any>({
+        queryKey: ['salary-structures', employeeId],
+        queryFn: () => fetchJson(`/api/hr/payroll/structures${employeeId ? `?employeeId=${employeeId}` : ''}`),
+    });
+
+    const upsert = useMutation({
+        mutationFn: (data: any) => fetchJson('/api/hr/payroll/structures', 'POST', data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['salary-structures'] }),
+    });
+
+    return { ...query, upsert };
 };

@@ -50,8 +50,9 @@ export const GET = authorizedRoute(
                 where,
                 include: {
                     employee: {
-                        include: { user: { select: { email: true } } }
-                    }
+                        include: { user: { select: { name: true, email: true } } }
+                    },
+                    shift: true
                 },
                 orderBy: { date: 'asc' }
             });
@@ -137,28 +138,56 @@ export const POST = authorizedRoute(
                     isGeofenced = true;
                 }
 
+                // Find Shift Roster
+                const roster = await prisma.shiftRoster.findUnique({
+                    where: { employeeId_date: { employeeId: profile.id, date: today } },
+                    include: { shift: true }
+                });
+
+                const now = new Date();
+                let lateMinutes = 0;
+                let shiftId = roster?.shiftId;
+
+                if (roster?.shift) {
+                    const shift = roster.shift;
+                    const [sHrs, sMin] = shift.startTime.split(':').map(Number);
+                    const shiftStart = new Date(today);
+                    shiftStart.setHours(sHrs, sMin, 0, 0);
+
+                    const graceLimit = new Date(shiftStart);
+                    graceLimit.setMinutes(graceLimit.getMinutes() + (shift.gracePeriod || 0));
+
+                    if (now > graceLimit) {
+                        lateMinutes = Math.floor((now.getTime() - shiftStart.getTime()) / (1000 * 60));
+                    }
+                }
+
                 const record = await prisma.attendance.upsert({
                     where: { employeeId_date: { employeeId: profile.id, date: today } },
                     update: {
-                        checkIn: new Date(),
+                        checkIn: now,
                         workFrom: workFrom || 'OFFICE',
                         latitude: isNaN(userLat) ? null : userLat,
                         longitude: isNaN(userLon) ? null : userLon,
                         isGeofenced,
                         locationName: locationName || (isRemote ? 'Remote Location' : 'Office HQ'),
-                        companyId: user.companyId
+                        companyId: user.companyId,
+                        shiftId,
+                        lateMinutes
                     },
                     create: {
                         employeeId: profile.id,
                         date: today,
-                        checkIn: new Date(),
+                        checkIn: now,
                         workFrom: workFrom || 'OFFICE',
                         status: 'PRESENT',
                         latitude: isNaN(userLat) ? null : userLat,
                         longitude: isNaN(userLon) ? null : userLon,
                         isGeofenced,
                         locationName: locationName || (isRemote ? 'Remote Location' : 'Office HQ'),
-                        companyId: user.companyId
+                        companyId: user.companyId,
+                        shiftId,
+                        lateMinutes
                     }
                 });
                 return NextResponse.json(record);
@@ -166,9 +195,31 @@ export const POST = authorizedRoute(
                 if (!existing?.checkIn) return createErrorResponse('Must check in first', 400);
                 if (existing.checkOut) return createErrorResponse('Already checked out today', 400);
 
+                const now = new Date();
+                let otMinutes = 0;
+
+                const attendanceWithShift = await prisma.attendance.findUnique({
+                    where: { id: existing.id },
+                    include: { shift: true }
+                });
+
+                if (attendanceWithShift?.shift) {
+                    const shift = attendanceWithShift.shift;
+                    const [eHrs, eMin] = shift.endTime.split(':').map(Number);
+                    const shiftEnd = new Date(existing.date);
+                    shiftEnd.setHours(eHrs, eMin, 0, 0);
+
+                    if (now > shiftEnd) {
+                        otMinutes = Math.floor((now.getTime() - shiftEnd.getTime()) / (1000 * 60));
+                    }
+                }
+
                 const record = await prisma.attendance.update({
                     where: { id: existing.id },
-                    data: { checkOut: new Date() }
+                    data: {
+                        checkOut: now,
+                        otMinutes
+                    }
                 });
                 return NextResponse.json(record);
             }
